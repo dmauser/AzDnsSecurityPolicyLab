@@ -1,0 +1,2 @@
+# Bicep compiled output — commit the .bicep source, not the generated ARM JSON
+infra/*.json

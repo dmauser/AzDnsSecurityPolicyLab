@@ -60,36 +60,42 @@ The Codespaces devcontainer includes:
 
 ## 🚀 Quick Start
 
-### 1. Open in Codespaces
+### 1. Open in Codespaces (or clone locally)
 
-Click the "Code" button and select "Open with Codespaces" to launch the lab environment.
+Click the "Code" button and select "Open with Codespaces", or clone the repository and open in VS Code.
 
 ### 2. Configure Your Subscription
 
-Edit the `answers.json` file and add your Azure subscription ID:
+Edit `answers.json` and set your Azure subscription ID:
 
 ```json
 {
-  "subscriptionId": "YOUR-SUBSCRIPTION-ID-HERE"
+  "subscriptionId": "YOUR-SUBSCRIPTION-ID-HERE",
+  "resourceGroupName": "rg-dns-security-lab"
 }
 ```
 
+Resource naming and location are configured in [`infra/main.bicepparam`](infra/main.bicepparam). Edit that file if you want to customise names or the default `eastus2` location.
+
 ### 3. Deploy the Lab
 
-Run the deployment script:
-
+**Linux / Codespaces (Bash):**
 ```bash
 ./deploy-lab.sh
 ```
+> If you get "Permission denied", run `chmod +x *.sh` first.
 
-> **Note**: If you get "Permission denied", run `chmod +x *.sh` first, or use `bash deploy-lab.sh`
+**Windows (PowerShell):**
+```powershell
+.\Deploy-Lab.ps1
+```
 
-The script will:
+Both scripts will:
 - Prompt for Azure authentication via device code
-- Request a secure password for the VM
-- Deploy all Azure resources
-- Configure DNS security policies
-- Set up monitoring and diagnostics
+- Ask for a secure password for the VM admin account
+- Create the resource group
+- Execute a single `az deployment group create` using `infra/main.bicep`
+- Print a deployment summary with access instructions
 
 ### 4. Test DNS Blocking
 
@@ -129,10 +135,41 @@ View DNS logs in Log Analytics:
 
 ### 6. Clean Up
 
-When finished:
+**Linux / Codespaces:**
 ```bash
 ./remove-lab.sh
 ```
+
+**Windows (PowerShell):**
+```powershell
+.\Remove-Lab.ps1
+```
+
+## 🏗️ Infrastructure as Code
+
+All Azure resources are defined in [`infra/main.bicep`](infra/main.bicep) and deployed as a single ARM deployment. The parameters file [`infra/main.bicepparam`](infra/main.bicepparam) contains all resource naming defaults.
+
+| File | Purpose |
+|------|---------|
+| `infra/main.bicep` | Bicep template — all resource definitions |
+| `infra/main.bicepparam` | Parameter values (names, location, SKUs) |
+| `answers.json` | Subscription ID and resource group name |
+| `deploy-lab.sh` | Bash deployment wrapper |
+| `Deploy-Lab.ps1` | PowerShell deployment wrapper |
+| `remove-lab.sh` | Bash cleanup script |
+| `Remove-Lab.ps1` | PowerShell cleanup script |
+
+To deploy directly with Azure CLI (no script):
+```bash
+az group create --name rg-dns-security-lab --location eastus2
+az deployment group create \
+  --resource-group rg-dns-security-lab \
+  --template-file infra/main.bicep \
+  --parameters infra/main.bicepparam \
+  --parameters vmAdminPassword='<your-password>'
+```
+
+
 
 ## 📊 DNS Query Monitoring
 
@@ -470,6 +507,14 @@ AzDnsSecurityPolicyLab/
 - [Azure DNS Resolver Documentation](https://docs.microsoft.com/en-us/azure/dns/dns-resolver-overview)
 - [Azure Monitor and Log Analytics](https://docs.microsoft.com/en-us/azure/azure-monitor/)
 - [KQL Query Language Reference](https://docs.microsoft.com/en-us/azure/data-explorer/kusto/query/)
+
+## 🙏 Credits
+
+This repository is a fork of the original lab created by **[@samsmith-MSFT](https://github.com/samsmith-MSFT)**:
+
+> **[samsmith-MSFT/AzDnsSecurityPolicyLab](https://github.com/samsmith-MSFT/AzDnsSecurityPolicyLab)**
+
+The original lab environment and all core concepts, architecture, scripts, and documentation were authored by samsmith-MSFT. This fork converts the deployment from Azure CLI scripts to a Bicep-based infrastructure-as-code approach.
 
 ## 🤝 Contributing
 

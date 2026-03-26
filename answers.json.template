@@ -1,18 +1,4 @@
 {
   "subscriptionId": "REPLACE-WITH-YOUR-AZURE-SUBSCRIPTION-ID",
-  "resourceGroupName": "rg-dns-security-lab",
-  "location": "eastus2",
-  "vnetName": "vnet-dns-lab",
-  "vnetAddressSpace": "10.0.0.0/16",
-  "subnetName": "subnet-vm",
-  "subnetAddressPrefix": "10.0.1.0/24",
-  "vmName": "vm-ubuntu-lab",
-  "vmSize": "Standard_B1s",
-  "vmAdminUsername": "azureuser",
-  "nsgName": "nsg-vm-lab",
-  "logAnalyticsWorkspaceName": "law-dns-security-lab",
-  "dnsSecurityPolicyName": "dns-security-policy-lab",
-  "domainListName": "malicious-domains-list",
-  "securityRuleName": "block-malicious-rule",
-  "vnetLinkName": "vnet-link-lab"
+  "resourceGroupName": "rg-dns-security-lab"
 }
