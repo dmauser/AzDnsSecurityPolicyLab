@@ -10,6 +10,10 @@ This repository is a fork of the original lab created by **[@samsmith-MSFT](http
 
 The original lab environment and all core concepts, architecture, scripts, and documentation were authored by samsmith-MSFT. This fork converts the deployment from Azure CLI scripts to a Bicep-based infrastructure-as-code approach.
 
+The **Sentinel integration** (Scenario 5) — including Summary Rules, Analytics Rules, and Threat Intelligence detection — is based on the excellent blog post by **[@pisinger (Pit Singert)](https://github.com/pisinger)**:
+
+> **[Detect suspicious DNS requests using Azure DNS Security Policy and Sentinel Summary Rules](https://pisinger.github.io/posts/detect-suspicious-dns-requests/)**
+
 ## 🎯 Lab Overview
 
 This lab creates a complete Azure environment with:
@@ -22,6 +26,7 @@ This lab creates a complete Azure environment with:
 - **DNS Security Rules** to block specific domains with blockpolicy.azuredns.invalid response
 - **Network Security Group** for internal access only
 - **Log Analytics Workspace** for DNS query monitoring and diagnostics
+- **Microsoft Sentinel** enabled on the workspace for threat detection and analytics
 - **Diagnostic Settings** configured to capture all DNS security events
 
 ## 🏗️ Architecture
@@ -512,6 +517,185 @@ You should see results similar to this:
 ![DNS Threat Intelligence results in Log Analytics](media/DNSThreadIntel.png)
 
 The log entries show which domains were blocked by Threat Intelligence versus those blocked by your custom DNS Security Rules.
+
+### Scenario 5: Sentinel DNS Threat Detection
+
+This scenario builds on the DNS logging already in place and uses **Microsoft Sentinel** (automatically deployed with the lab) to detect suspicious DNS queries by correlating them against Threat Intelligence indicators. The approach follows the guide by [Pit Singert (@pisinger)](https://pisinger.github.io/posts/detect-suspicious-dns-requests/).
+
+#### Step 1 — Verify Sentinel is enabled
+
+Sentinel is deployed automatically with the lab (via the `SecurityInsights` solution on the Log Analytics workspace). Verify it in the Azure Portal:
+
+1. Navigate to **Microsoft Sentinel**
+2. You should see your workspace (`law-dns-security-lab`) listed
+3. Click on it to open the Sentinel dashboard
+
+#### Step 2 — Enable the Threat Intelligence data connector
+
+1. In Sentinel, go to **Data connectors**
+2. Search for **Microsoft Defender Threat Intelligence**
+3. Click **Open connector page** and enable it
+
+This populates the `ThreatIntelIndicators` table with known malicious domains and IPs.
+
+#### Step 3 — Create a Summary Rule (cost optimization)
+
+Summary Rules aggregate the high-volume `DNSQueryLogs` table into a smaller `DNSQueryLogs_sum_CL` custom table, reducing data volume by 80-90% while preserving detection capability.
+
+1. In Sentinel, go to **Summary Rules** → **Create**
+2. Set the aggregation interval to **1 hour**
+3. Set the destination table to `DNSQueryLogs_sum_CL`
+4. Paste this KQL query:
+
+```kusto
+DNSQueryLogs
+| extend Answer = iif(Answer == "[]", '["NXDOMAIN"]', Answer)
+| extend Answer = todynamic(Answer)
+| mv-expand Answer
+| extend parsed = parse_json(Answer)
+| extend RData = parsed.RData
+| extend RType = tostring(parsed.Type)
+| extend QueryName = tolower(trim_end("\\.", QueryName))
+| summarize EventCount = count(), Answers = make_set(tostring(RData))
+    by bin(TimeGenerated, 1h), RType, OperationName, Region, VirtualNetworkId,
+       SourceIpAddress, Transport, QueryName, QueryType, ResponseCode,
+       ResolutionPath, ResolverPolicyRuleAction
+| extend RDataCount = array_length(Answers)
+```
+
+> **Cost tip:** After creating the Summary Rule, you can switch the `DNSQueryLogs` table to **Basic** tier to further reduce costs:
+> ```bash
+> az monitor log-analytics workspace table update \
+>   --resource-group rg-dns-security-lab \
+>   --workspace-name law-dns-security-lab \
+>   --name DNSQueryLogs --plan Basic
+> ```
+
+#### Step 4 — Create the Analytics (Detection) Rule
+
+You can deploy the detection rule manually or use the one-click ARM template:
+
+**Option A — Deploy via Azure Portal (one-click):**
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fpisinger%2Fhunting%2Frefs%2Fheads%2Fmain%2Fsentinel-suspicious-dns-requests.json)
+
+**Option B — Create manually:**
+
+1. In Sentinel, go to **Analytics** → **Create** → **Scheduled query rule**
+2. Set frequency to **1 hour** (matching the Summary Rule interval)
+3. Set lookup period to **14 days**
+4. Paste this KQL query:
+
+```kusto
+let dt_lookBack = 1h;
+let ioc_lookBack = 14d;
+let ThreatIntel = materialize(
+    ThreatIntelIndicators
+    | where TimeGenerated >= ago(ioc_lookBack) and ValidUntil > now()
+    | where IsActive == true
+    | summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by Id
+    | extend source = Data.name
+    | extend IndicatorType = tostring(Data.indicator_types)
+    | where ObservableKey has "domain"
+    | extend DomainName = ObservableValue
+    | where isnotempty(DomainName)
+);
+let DNSQueryLogs_sum = (
+    DNSQueryLogs_sum_CL
+    | where TimeGenerated >= ago(dt_lookBack)
+    | extend QueryName = trim_end("\\.", QueryName)
+);
+// Exact domain match
+let ioc_query_match_exact = (
+    ThreatIntel
+    | project DomainName, IsActive, Confidence, ValidUntil, IndicatorType
+    | join kind=inner (DNSQueryLogs_sum | extend _LookupType = "query_match_exact")
+      on $left.DomainName == $right.QueryName
+);
+// Parent domain match (e.g. sub.evil.com matches evil.com indicator)
+let ioc_query_match_parentdomain_only = (
+    ThreatIntel
+    | project DomainName, IsActive, Confidence, ValidUntil, IndicatorType
+    | join kind=inner (
+        DNSQueryLogs_sum
+        | extend DomainNameExtractKey = replace_regex(QueryName, "^.*?\\.", "")
+        | extend _LookupType = "query_match_parentdomain_only"
+    ) on $left.DomainName == $right.DomainNameExtractKey
+);
+// CNAME answer match
+let ioc_answer_match_exact = (
+    ThreatIntel
+    | project DomainName, IsActive, Confidence, ValidUntil, IndicatorType
+    | join kind=inner (
+        DNSQueryLogs_sum
+        | where RType == "CNAME"
+        | mv-expand AnswersKey = Answers to typeof(string)
+        | extend AnswersKey = trim_end("\\.", AnswersKey)
+        | extend _LookupType = "answer_match_exact"
+    ) on $left.DomainName == $right.AnswersKey
+);
+ioc_query_match_parentdomain_only
+| union ioc_query_match_exact, ioc_answer_match_exact
+| project TimeGenerated, QueryName, DomainName, IsActive, Confidence, ValidUntil,
+         IndicatorType, RType, OperationName, SourceIpAddress, Transport, Answers,
+         RDataCount, EventCount, Region, VirtualNetworkId, _LookupType
+```
+
+#### Step 5 — Test the detection
+
+From the VM (via Bastion), resolve a domain that appears in the Threat Intelligence indicators:
+
+```bash
+# Find domains in Threat Intel (run in Sentinel Logs first):
+# ThreatIntelIndicators | where ObservableKey has "domain" | project ObservableValue | take 20
+
+# Then resolve one from the VM:
+nslookup <domain-from-threat-intel>
+```
+
+After the Summary Rule aggregation interval (1 hour), the Analytics Rule should fire and create a Sentinel **Incident** showing the match.
+
+#### Step 6 — (Optional) Additional rule: detect suspicious IPs from DNS answers
+
+You may also want to detect DNS queries where the **resolved IP address** (A/AAAA answer) matches a known malicious IP from Threat Intelligence. This catches cases where the domain name itself isn't flagged but the IP behind it is.
+
+Create a second Analytics Rule in Sentinel with this KQL:
+
+```kusto
+let dt_lookBack = 1h;
+let ioc_lookBack = 14d;
+ThreatIntelIndicators
+| where TimeGenerated >= ago(ioc_lookBack) and ValidUntil > now()
+| where IsActive == true
+| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by Id
+| extend IndicatorType = tostring(Data.indicator_types)
+| where ObservableKey has "network-traffic"
+| extend IpAddr = ObservableValue
+| where isnotempty(IpAddr)
+| project IpAddr, IsActive, Confidence, ValidUntil, IndicatorType
+| join kind=inner (
+    DNSQueryLogs_sum_CL
+    | where TimeGenerated >= ago(dt_lookBack)
+    | where RType in ("A","AAAA")
+    | mv-expand Answers to typeof(string)
+    | distinct QueryName, RType, Answers
+) on $left.IpAddr == $right.Answers
+```
+
+> **Note:** This rule uses the `DNSQueryLogs_sum_CL` summary table. If you prefer to query the raw `DNSQueryLogs` table directly instead, keep it in **Analytics** tier (not Basic) because `join` operations are not supported on Basic-tier tables.
+
+#### Cost considerations
+
+| Component | Cost |
+|---|---|
+| Sentinel (first 31 days) | **Free** (10 GB/day) |
+| Sentinel (after trial, light lab use ~100 MB/day) | ~$7-10/mo |
+| DNSQueryLogs in Basic tier | ~$0.50/GB (vs $2.76 analytics tier) |
+| Summary Rules output | ~$2.76/GB but 80-90% smaller volume |
+| Threat Intel connector | **Free** |
+| Analytics rules | **Free** (included in Sentinel) |
+
+> For a lab running occasionally, expect **~$0 during the free trial** and **~$9-15/month** after, depending on DNS query volume.
 
 ## 🛠️ Alternative Scripts
 

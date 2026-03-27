@@ -326,6 +326,24 @@ resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
   }
 }
 
+// Microsoft Sentinel — enabled on the Log Analytics workspace.
+// Sentinel uses the SecurityInsights solution on top of the existing workspace.
+// Cost: pay-per-GB ingested; first 31 days of a new workspace are free (10 GB/day).
+resource sentinel 'Microsoft.OperationsManagement/solutions@2015-11-01-preview' = {
+  name: 'SecurityInsights(${logAnalyticsWorkspaceName})'
+  location: location
+  tags: tags
+  plan: {
+    name: 'SecurityInsights(${logAnalyticsWorkspaceName})'
+    product: 'OMSGallery/SecurityInsights'
+    promotionCode: ''
+    publisher: 'Microsoft'
+  }
+  properties: {
+    workspaceResourceId: logAnalyticsWorkspace.id
+  }
+}
+
 output resourceGroupName string = resourceGroup().name
 output vmName string = vm.name
 output vmAdminUsername string = vmAdminUsername
