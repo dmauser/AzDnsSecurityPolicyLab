@@ -182,13 +182,15 @@ resource nic 'Microsoft.Network/networkInterfaces@2024-01-01' = {
   }
 }
 
-// Cloud-init config that ensures SSH password authentication is enabled.
+// Cloud-init config that ensures SSH password authentication is enabled and installs dnsutils (dig).
 // Ubuntu 22.04 cloud-init disables password auth by default, which blocks Bastion login.
 var cloudInitScript = '''
 #cloud-config
 ssh_pwauth: true
 chpasswd:
   expire: false
+packages:
+  - dnsutils
 '''
 
 // Ubuntu 22.04 LTS VM — password from Key Vault, access via Azure Bastion
