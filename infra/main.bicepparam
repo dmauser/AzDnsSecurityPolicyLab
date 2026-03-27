@@ -14,4 +14,8 @@ param dnsSecurityPolicyName = 'dns-security-policy-lab'
 param domainListName = 'malicious-domains-list'
 param securityRuleName = 'block-malicious-rule'
 param vnetLinkName = 'vnet-link-lab'
-// vmAdminPassword is intentionally omitted — it will be prompted at deployment time
+param bastionName = 'bastion-dns-lab'
+// keyVaultAdminObjectId has no default in main.bicep (required param).
+// The placeholder below satisfies BCP258 file validation.
+// It is always overridden at deploy time by the --parameters argument in the deployment scripts.
+param keyVaultAdminObjectId = 'override-at-deploy-time'

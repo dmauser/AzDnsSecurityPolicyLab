@@ -1,4 +1,3 @@
 {
-  "subscriptionId": "REPLACE-WITH-YOUR-AZURE-SUBSCRIPTION-ID",
   "resourceGroupName": "rg-dns-security-lab"
 }

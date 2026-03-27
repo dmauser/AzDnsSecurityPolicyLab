@@ -16,6 +16,13 @@ Write-Host '========================================' -ForegroundColor Cyan
 Write-Host ' Azure DNS Security Policy Lab Removal  ' -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
 
+# ── Ensure Az.Resources module is available ───────────────────────────────────
+if (-not (Get-Module -ListAvailable -Name Az.Resources -ErrorAction SilentlyContinue)) {
+    Write-Host "Az.Resources module not found. Installing..." -ForegroundColor Yellow
+    Install-Module Az.Resources -Scope CurrentUser -Force -AllowClobber -Repository PSGallery
+}
+Import-Module Az.Resources -ErrorAction Stop
+
 # ── Read configuration ────────────────────────────────────────────────────────
 $answersFile = Join-Path $PSScriptRoot 'answers.json'
 if (-not (Test-Path $answersFile)) {
@@ -23,31 +30,46 @@ if (-not (Test-Path $answersFile)) {
 }
 
 $config = Get-Content $answersFile -Raw | ConvertFrom-Json
-$subscriptionId    = $config.subscriptionId
 $resourceGroupName = $config.resourceGroupName
-
-if ([string]::IsNullOrWhiteSpace($subscriptionId) -or $subscriptionId -eq 'YOUR-SUBSCRIPTION-ID-HERE') {
-    Write-Error "Please set a valid subscriptionId in answers.json."
-}
 
 # ── Azure login ───────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "Logging into Azure..." -ForegroundColor Cyan
-az login --use-device-code
+Connect-AzAccount -UseDeviceAuthentication | Out-Null
 
-Write-Host "Setting subscription: $subscriptionId"
-az account set --subscription $subscriptionId
+# ── Subscription selection ────────────────────────────────────────────────────
+$available = Get-AzSubscription | Where-Object State -eq 'Enabled'
 
-$currentSub = (az account show --query id -o tsv).Trim()
-if ($currentSub -ne $subscriptionId) {
-    Write-Error "Failed to set subscription context."
+if ($available.Count -eq 0) {
+    Write-Error "No enabled Azure subscriptions found for the logged-in account."
 }
-Write-Host "Active subscription: $((az account show --query name -o tsv).Trim())" -ForegroundColor Green
+
+Write-Host ""
+Write-Host "Available subscriptions:" -ForegroundColor Yellow
+for ($i = 0; $i -lt $available.Count; $i++) {
+    Write-Host "  [$($i + 1)] $($available[$i].Name)" -ForegroundColor White
+    Write-Host "      $($available[$i].Id)" -ForegroundColor DarkGray
+}
+
+$selectedIndex = $null
+while ($null -eq $selectedIndex) {
+    $input = Read-Host "`nSelect subscription (1-$($available.Count))"
+    if ($input -match '^\d+$') {
+        $n = [int]$input
+        if ($n -ge 1 -and $n -le $available.Count) { $selectedIndex = $n - 1 }
+    }
+    if ($null -eq $selectedIndex) {
+        Write-Host "Invalid selection. Enter a number between 1 and $($available.Count)." -ForegroundColor Red
+    }
+}
+
+$selectedSub = $available[$selectedIndex]
+Set-AzContext -SubscriptionId $selectedSub.Id | Out-Null
+Write-Host "Using subscription: $($selectedSub.Name) ($($selectedSub.Id))" -ForegroundColor Green
 
 # ── Check resource group exists ───────────────────────────────────────────────
 Write-Host ""
-$rgExists = az group exists --name $resourceGroupName
-if ($rgExists -eq 'false') {
+if (-not (Get-AzResourceGroup -Name $resourceGroupName -ErrorAction SilentlyContinue)) {
     Write-Host "Resource group '$resourceGroupName' does not exist. Nothing to remove." -ForegroundColor Yellow
     exit 0
 }
@@ -67,8 +89,9 @@ if ($confirm -ne $resourceGroupName) {
 # ── Delete resource group ─────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "Deleting resource group '$resourceGroupName'..." -ForegroundColor Cyan
-az group delete --name $resourceGroupName --yes --no-wait
+Remove-AzResourceGroup -Name $resourceGroupName -Force -AsJob | Out-Null
 
 Write-Host ""
 Write-Host "Deletion initiated. The resource group is being removed in the background." -ForegroundColor Green
 Write-Host "You can monitor progress in the Azure Portal under Resource Groups." -ForegroundColor Green
+

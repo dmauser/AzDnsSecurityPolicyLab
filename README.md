@@ -6,7 +6,9 @@ A complete lab environment for testing and learning Azure DNS Security Policies 
 
 This lab creates a complete Azure environment with:
 
-- **Virtual Network** with an Ubuntu 22.04 LTS virtual machine (no public IP - serial console access)
+- **Virtual Network** with an Ubuntu 22.04 LTS virtual machine (no public IP)
+- **Azure Bastion (Developer SKU)** for secure browser-based SSH access — no public IP or dedicated subnet required
+- **Azure Key Vault** storing an auto-generated VM password (no manual password entry)
 - **Azure DNS Security Policy** linked to the virtual network
 - **DNS Domain List** with malicious domains (`malicious.contoso.com.`, `exploit.adatum.com.`)
 - **DNS Security Rules** to block specific domains with blockpolicy.azuredns.invalid response
@@ -18,33 +20,42 @@ This lab creates a complete Azure environment with:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Azure Subscription                      │
+│                    Azure Subscription                       │
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │                Resource Group                       │    │
 │  │                                                     │    │
-│  │  ┌─────────────────┐    ┌─────────────────────────┐  │    │
-│  │  │  Virtual Network │    │   DNS Security Policy  │  │    │
-│  │  │  (10.0.0.0/16)  │◄───┤  - Domain List         │  │    │
-│  │  │                 │    │  - Security Rules       │  │    │
-│  │  │  ┌─────────────┐│    │  - VNet Link            │  │    │
-│  │  │  │   Subnet    ││    │  - Diagnostic Settings │  │    │
-│  │  │  │(10.0.1.0/24)││    └─────────────┬───────────┘  │    │
-│  │  │  │             ││                  │              │    │
-│  │  │  │  ┌────────┐ ││    ┌─────────────┼───────────┐  │    │
-│  │  │  │  │Ubuntu  │ ││    │     NSG     │           │  │    │
-│  │  │  │  │VM      │◄┼┼────┤  - Internal │Access     │  │    │
-│  │  │  │  └────────┘ ││    │  - No Public│IP         │  │    │
-│  │  │  └─────────────┘│    └─────────────┘           │  │    │
-│  │  └─────────────────┘                              │  │    │
-│  │                     ▲                             │  │    │
-│  │            Azure Portal Serial Console            │  │    │
-│  │                                                   │  │    │
-│  │  ┌─────────────────────────────────────────────────┘  │    │
-│  │  │           Log Analytics Workspace                 │    │
-│  │  │           - DNS Query Logs                        │    │
-│  │  │           - Diagnostic Data                       │    │
-│  │  └───────────────────────────────────────────────────┘    │
+│  │  ┌─────────────────┐    ┌─────────────────────────┐ │    │
+│  │  │  Virtual Network│    │   DNS Security Policy   │ │    │
+│  │  │  (10.0.0.0/16)  │◄───┤  - Domain List          │ │    │
+│  │  │                 │    │  - Security Rules       │ │    │
+│  │  │  ┌─────────────┐│    │  - VNet Link            │ │    │
+│  │  │  │   Subnet    ││    │  - Diagnostic Settings  │ │    │
+│  │  │  │(10.0.1.0/24)││    └─────────────┬───────────┘ │    │
+│  │  │  │             ││                  │             │    │
+│  │  │  │  ┌────────┐ ││    ┌─────────────┼───────────┐ │    │
+│  │  │  │  │Ubuntu  │ ││    │     NSG     │           │ │    │
+│  │  │  │  │VM      │◄┼┼────┤  - No Public IP         │ │    │
+│  │  │  │  └───┬────┘ ││    └─────────────┘           │ │    │
+│  │  │  └──────┼──────┘│                              │ │    │
+│  │  └─────────┼───────┘                              │ │    │
+│  │            │ ▲ Browser SSH                        │ │    │
+│  │  ┌─────────┴─┴──────────────────────────────────┐ │ │    │
+│  │  │  Azure Bastion (Developer SKU)               │ │ │    │
+│  │  │  - No dedicated subnet or public IP needed   │ │ │    │
+│  │  └──────────────────────────────────────────────┘ │ │    │
+│  │                                                   │ │    │
+│  │  ┌─────────────────────────────────────────────┐  │ │    │
+│  │  │  Azure Key Vault                            │  │ │    │
+│  │  │  - Auto-generated VM password               │  │ │    │
+│  │  │  - Access policy scoped to deploying user   │  │ │    │
+│  │  └─────────────────────────────────────────────┘  │ │    │
+│  │                                                   │ │    │
+│  │  ┌───────────────────────────────────────────────┘ │    │
+│  │  │           Log Analytics Workspace                │    │
+│  │  │           - DNS Query Logs                       │    │
+│  │  │           - Diagnostic Data                      │    │
+│  │  └──────────────────────────────────────────────────┘    │
 │  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -64,18 +75,17 @@ The Codespaces devcontainer includes:
 
 Click the "Code" button and select "Open with Codespaces", or clone the repository and open in VS Code.
 
-### 2. Configure Your Subscription
+### 2. Configure Your Settings (Optional)
 
-Edit `answers.json` and set your Azure subscription ID:
+`answers.json` only contains the resource group name — no subscription ID required:
 
 ```json
 {
-  "subscriptionId": "YOUR-SUBSCRIPTION-ID-HERE",
   "resourceGroupName": "rg-dns-security-lab"
 }
 ```
 
-Resource naming and location are configured in [`infra/main.bicepparam`](infra/main.bicepparam). Edit that file if you want to customise names or the default `eastus2` location.
+The deployment scripts will prompt you to pick a subscription interactively after login. Resource naming and location are configured in [`infra/main.bicepparam`](infra/main.bicepparam). Edit that file if you want to customise names or the default `eastus2` region.
 
 ### 3. Deploy the Lab
 
@@ -89,25 +99,43 @@ Resource naming and location are configured in [`infra/main.bicepparam`](infra/m
 ```powershell
 .\Deploy-Lab.ps1
 ```
+> Requires the `Az.Resources` PowerShell module (`Install-Module Az.Resources`). The script will install it automatically if missing.
 
 Both scripts will:
 - Prompt for Azure authentication via device code
-- Ask for a secure password for the VM admin account
+- Show a numbered list of your subscriptions — pick one
+- Auto-generate a random VM password and store it in Key Vault (no password prompt)
 - Create the resource group
-- Execute a single `az deployment group create` using `infra/main.bicep`
-- Print a deployment summary with access instructions
+- Deploy `infra/main.bicep` as a single ARM deployment
+- Print a deployment summary including the Key Vault name and how to retrieve the password
 
-### 4. Test DNS Blocking
+### 4. Retrieve VM Password and Connect via Bastion
 
-After deployment, access your VM via the Azure Portal:
+The VM password was auto-generated and stored in Key Vault. Retrieve it with:
+
+**PowerShell:**
+```powershell
+Get-AzKeyVaultSecret -VaultName '<kv-name-from-output>' -Name 'vm-admin-password' -AsPlainText
+```
+
+**Bash / Codespaces:**
+```bash
+az keyvault secret show --vault-name '<kv-name-from-output>' --name 'vm-admin-password' --query value -o tsv
+```
+
+Then connect to the VM:
 
 1. Go to [Azure Portal](https://portal.azure.com)
-2. Navigate to Virtual Machines
-3. Select your VM in the resource group
-4. Click "Serial console" in the left menu
-5. Login with the credentials you provided
+2. Navigate to **Virtual Machines** and select your VM
+3. Click **Connect → Connect via Bastion**
+4. Set **Authentication Type** to **"Password"**
+   > **Do NOT** select "Password from Azure Key Vault" — that feature requires Bastion Basic/Standard SKU (~$139/month). Developer SKU is free; just paste the password manually.
+5. Enter username `azureuser`
+6. Paste the password you retrieved from Key Vault above
 
-Test DNS blocking from the VM:
+### 5. Test DNS Blocking
+
+From the Bastion browser terminal:
 ```bash
 # Test blocked domains (should return blockpolicy.azuredns.invalid)
 dig malicious.contoso.com
@@ -126,14 +154,14 @@ dig @8.8.8.8 google.com  # Test with external DNS for comparison
 - **Blocked domains**: Should return `blockpolicy.azuredns.invalid`
 - **Allowed domains**: Should return IP addresses normally
 
-### 5. Monitor DNS Activity
+### 6. Monitor DNS Activity
 
 View DNS logs in Log Analytics:
 1. Go to your resource group in Azure Portal
 2. Open the Log Analytics workspace (`law-dns-security-lab`)
 3. Click "Logs" and run KQL queries
 
-### 6. Clean Up
+### 7. Clean Up
 
 **Linux / Codespaces:**
 ```bash
@@ -153,20 +181,27 @@ All Azure resources are defined in [`infra/main.bicep`](infra/main.bicep) and de
 |------|---------|
 | `infra/main.bicep` | Bicep template — all resource definitions |
 | `infra/main.bicepparam` | Parameter values (names, location, SKUs) |
-| `answers.json` | Subscription ID and resource group name |
-| `deploy-lab.sh` | Bash deployment wrapper |
-| `Deploy-Lab.ps1` | PowerShell deployment wrapper |
+| `answers.json` | Resource group name (no subscription ID needed) |
+| `deploy-lab.sh` | Bash deployment wrapper (Azure CLI) |
+| `Deploy-Lab.ps1` | PowerShell deployment wrapper (Az module) |
 | `remove-lab.sh` | Bash cleanup script |
 | `Remove-Lab.ps1` | PowerShell cleanup script |
 
 To deploy directly with Azure CLI (no script):
 ```bash
+ADMIN_OID=$(az ad signed-in-user show --query id -o tsv)
 az group create --name rg-dns-security-lab --location eastus2
 az deployment group create \
   --resource-group rg-dns-security-lab \
   --template-file infra/main.bicep \
   --parameters infra/main.bicepparam \
-  --parameters vmAdminPassword='<your-password>'
+  --parameters "keyVaultAdminObjectId=$ADMIN_OID"
+```
+
+The VM password is auto-generated and stored in Key Vault. Retrieve it after deployment:
+```bash
+KV=$(az deployment group show -g rg-dns-security-lab -n main --query properties.outputs.keyVaultName.value -o tsv)
+az keyvault secret show --vault-name "$KV" --name vm-admin-password --query value -o tsv
 ```
 
 
@@ -352,10 +387,10 @@ The lab creates a DNS security policy with the following configuration:
 
 ### Network Configuration
 
-- **Virtual Network**: `vnet-dns-security-lab` (10.0.0.0/16)
-- **Subnet**: `subnet-internal` (10.0.1.0/24)
-- **VM**: Ubuntu 22.04 LTS, Standard_B1s
-- **Access**: Serial console only (no public IP)
+- **Virtual Network**: `vnet-dns-lab` (10.0.0.0/16)
+- **Subnet**: `subnet-vm` (10.0.1.0/24)
+- **VM**: Ubuntu 22.04 LTS, Standard_B1s, no public IP
+- **Access**: Azure Bastion Developer (browser-based SSH)
 
 ### Monitoring Configuration
 
@@ -368,8 +403,9 @@ The lab creates a DNS security policy with the following configuration:
 ### Scenario 1: Basic DNS Blocking Test
 
 1. Deploy the lab environment
-2. Connect to VM via serial console
-3. Test DNS blocking with these commands:
+2. Retrieve the VM password from Key Vault (see [Quick Start step 4](#4-retrieve-vm-password-and-connect-via-bastion))
+3. Connect to the VM via **Azure Bastion** (Connect → Connect via Bastion in the Portal)
+4. Test DNS blocking with these commands:
 
 ```bash
 # Install dig if not present
@@ -431,29 +467,38 @@ This checks for:
 AzDnsSecurityPolicyLab/
 ├── README.md                    # This documentation
 ├── FILE_OVERVIEW.md             # Detailed file descriptions
-├── answers.json                 # Configuration file (update with your subscription)
+├── answers.json                 # Resource group name
 ├── answers.json.template        # Template for configuration
-├── deploy-lab.sh               # Main deployment script
-├── remove-lab.sh               # Lab cleanup script
+├── Deploy-Lab.ps1              # PowerShell deployment (Az module)
+├── Remove-Lab.ps1              # PowerShell cleanup (Az module)
+├── deploy-lab.sh               # Bash deployment (Azure CLI)
+├── remove-lab.sh               # Bash cleanup
 ├── validate-environment.sh     # Pre-deployment validation
 ├── test-dns-policy.sh          # DNS testing instructions
-└── .devcontainer/              # GitHub Codespaces configuration
-    └── devcontainer.json       # Container setup and tools
+└── infra/
+    ├── main.bicep              # All Azure resource definitions
+    └── main.bicepparam         # Parameter values (names, region, SKUs)
 ```
 
 ## 🔒 Security Features
 
 ### No Public Network Access
 - VM has no public IP address
-- Access only via Azure Portal serial console
-- Network Security Group allows internal traffic only
-- No SSH keys or direct network access required
+- Inbound SSH access only via **Azure Bastion Developer** (browser-based, no public endpoint)
+- Network Security Group has no inbound rules — only Bastion traffic reaches the VM
+- No SSH keys or direct internet access required
 
 ### DNS Security Policy
 - Blocks malicious domains at the DNS level
 - Returns blockpolicy.azuredns.invalid response for blocked queries
 - Linked to virtual network for automatic protection
 - Configurable priority and response types
+
+### Key Vault Secret Management
+- VM password is randomly generated at deployment time (`newGuid()`-based)
+- Stored as a Key Vault secret — never appears in logs or deployment history for values
+- Access policy scoped to the deploying user's Object ID only
+- Soft delete enabled (7-day retention) for recoverability
 
 ### Monitoring and Auditing
 - All DNS queries logged to Log Analytics
@@ -470,13 +515,14 @@ AzDnsSecurityPolicyLab/
 - Fix with: `chmod +x *.sh` (should be automatic in Codespaces)
 - If still having issues, run: `bash deploy-lab.sh` instead of `./deploy-lab.sh`
 
-**"No subscription found"**
-- Ensure you've updated `answers.json` with your subscription ID
-- Run `az account list` to verify your subscriptions
+**"No enabled subscriptions found"**
+- Ensure the logged-in account has at least one enabled Azure subscription
+- Run `az account list --query "[?state=='Enabled']" -o table` to verify
 
-**"VM password requirements"**
-- Password must be 12-123 characters
-- Must contain uppercase, lowercase, numbers, and special characters
+**"Could not determine your Azure AD Object ID"**
+- This can happen with guest accounts or federated identities
+- Find your OID manually: `az ad signed-in-user show --query id -o tsv`
+- Paste the value when prompted (PowerShell) or set `ADMIN_OID` manually before running the script (Bash)
 
 **"DNS queries not being blocked"**
 - Wait 2-3 minutes after deployment for DNS propagation
@@ -486,9 +532,10 @@ AzDnsSecurityPolicyLab/
 - Verify policy is linked: Check virtual network links in Azure Portal
 
 **"Cannot access VM"**
-- Use Azure Portal serial console only
-- VM has no public IP by design
-- Login with username/password provided during deployment
+- Connect via **Azure Bastion**: Portal → Virtual Machines → your VM → Connect → Connect via Bastion
+- VM has no public IP by design — direct SSH is not possible
+- Retrieve the password from Key Vault (see Quick Start step 4)
+- If Bastion shows an error, wait 2 minutes after deployment for it to become ready
 
 **"dig command not found"**
 - Install dig if needed: `sudo apt update && sudo apt install dnsutils`
@@ -528,7 +575,9 @@ This lab is designed for educational purposes. Feel free to modify the scripts a
 ---
 
 **⚠️ Important Notes:**
-- This lab creates billable Azure resources
-- Remember to clean up resources when done (`./remove-lab.sh`)
-- VM access is via serial console only - no SSH/RDP
+- This lab creates billable Azure resources (~$9-12/month while running)
+- Remember to clean up resources when done (`./remove-lab.sh` or `Remove-Lab.ps1`)
+- VM access is via **Azure Bastion Developer** (browser SSH in Portal) — no public IP or SSH key required
+- Retrieve the VM password from Key Vault after deployment (name shown in deployment output)
 - DNS changes may take 2-3 minutes to propagate
+- Azure Bastion Developer SKU is available in most Azure regions; if deployment fails with a region error, check the [Bastion SKU availability](https://aka.ms/bastionsku) and update `location` in `infra/main.bicepparam`

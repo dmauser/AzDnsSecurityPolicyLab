@@ -16,15 +16,9 @@ if [[ ! -f "answers.json" ]]; then
 fi
 
 # Read configuration from answers.json
-SUBSCRIPTION_ID=$(jq -r '.subscriptionId' answers.json)
 RESOURCE_GROUP_NAME=$(jq -r '.resourceGroupName' answers.json)
 
 # Validate required fields
-if [[ -z "$SUBSCRIPTION_ID" || "$SUBSCRIPTION_ID" == "null" || "$SUBSCRIPTION_ID" == "" ]]; then
-    echo "Error: subscriptionId is required in answers.json"
-    exit 1
-fi
-
 if [[ -z "$RESOURCE_GROUP_NAME" || "$RESOURCE_GROUP_NAME" == "null" ]]; then
     echo "Error: resourceGroupName is required in answers.json"
     exit 1
@@ -35,18 +29,37 @@ echo ""
 echo "Logging into Azure..."
 az login --use-device-code
 
-# Set the subscription context
-echo "Setting subscription context to: $SUBSCRIPTION_ID"
-az account set --subscription "$SUBSCRIPTION_ID"
+# Subscription selection
+echo ""
+echo "Available subscriptions:"
 
-# Verify the subscription is set correctly
-CURRENT_SUBSCRIPTION=$(az account show --query id -o tsv)
-if [[ "$CURRENT_SUBSCRIPTION" != "$SUBSCRIPTION_ID" ]]; then
-    echo "Error: Failed to set subscription context"
+mapfile -t SUB_NAMES < <(az account list --query '[?state==`Enabled`].name' --output tsv)
+mapfile -t SUB_IDS   < <(az account list --query '[?state==`Enabled`].id'   --output tsv)
+
+if [[ ${#SUB_IDS[@]} -eq 0 ]]; then
+    echo "Error: No enabled Azure subscriptions found for the logged-in account."
     exit 1
 fi
 
-echo "Successfully set subscription: $(az account show --query name -o tsv)"
+for i in "${!SUB_NAMES[@]}"; do
+    printf "  [%d] %s\n      %s\n" $((i + 1)) "${SUB_NAMES[$i]}" "${SUB_IDS[$i]}"
+done
+
+SELECTED_INDEX=""
+while true; do
+    read -rp $'\nSelect subscription (1-'"${#SUB_IDS[@]}"'): ' SELECTED_INDEX
+    if [[ "$SELECTED_INDEX" =~ ^[0-9]+$ ]] && \
+       [[ "$SELECTED_INDEX" -ge 1 && "$SELECTED_INDEX" -le "${#SUB_IDS[@]}" ]]; then
+        break
+    fi
+    echo "Invalid selection. Enter a number between 1 and ${#SUB_IDS[@]}."
+done
+
+SUBSCRIPTION_ID="${SUB_IDS[$((SELECTED_INDEX - 1))]}"
+SUBSCRIPTION_NAME="${SUB_NAMES[$((SELECTED_INDEX - 1))]}"
+
+az account set --subscription "$SUBSCRIPTION_ID"
+echo "Using subscription: $SUBSCRIPTION_NAME ($SUBSCRIPTION_ID)"
 
 # Check if resource group exists
 echo ""
