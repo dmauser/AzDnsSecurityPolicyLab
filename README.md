@@ -2,6 +2,14 @@
 
 A complete lab environment for testing and learning Azure DNS Security Policies with comprehensive monitoring capabilities. This lab demonstrates how to deploy and configure DNS security policies to block malicious domains using Azure CLI automation in GitHub Codespaces.
 
+## 🙏 Credits
+
+This repository is a fork of the original lab created by **[@samsmith-MSFT](https://github.com/samsmith-MSFT)**:
+
+> **[samsmith-MSFT/AzDnsSecurityPolicyLab](https://github.com/samsmith-MSFT/AzDnsSecurityPolicyLab)**
+
+The original lab environment and all core concepts, architecture, scripts, and documentation were authored by samsmith-MSFT. This fork converts the deployment from Azure CLI scripts to a Bicep-based infrastructure-as-code approach.
+
 ## 🎯 Lab Overview
 
 This lab creates a complete Azure environment with:
@@ -625,14 +633,6 @@ AzDnsSecurityPolicyLab/
 - [Azure DNS Resolver Documentation](https://docs.microsoft.com/en-us/azure/dns/dns-resolver-overview)
 - [Azure Monitor and Log Analytics](https://docs.microsoft.com/en-us/azure/azure-monitor/)
 - [KQL Query Language Reference](https://docs.microsoft.com/en-us/azure/data-explorer/kusto/query/)
-
-## 🙏 Credits
-
-This repository is a fork of the original lab created by **[@samsmith-MSFT](https://github.com/samsmith-MSFT)**:
-
-> **[samsmith-MSFT/AzDnsSecurityPolicyLab](https://github.com/samsmith-MSFT/AzDnsSecurityPolicyLab)**
-
-The original lab environment and all core concepts, architecture, scripts, and documentation were authored by samsmith-MSFT. This fork converts the deployment from Azure CLI scripts to a Bicep-based infrastructure-as-code approach.
 
 ## 🤝 Contributing
 
