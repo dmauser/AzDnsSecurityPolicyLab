@@ -84,7 +84,11 @@ The Codespaces devcontainer includes:
 
 ## 🚀 Quick Start
 
-### 1. Configure Your Settings (Optional)
+### 1. Open in Codespaces (or clone locally)
+
+Click the **"Code"** button and select **"Open with Codespaces"**, or clone the repository and open in VS Code.
+
+### 2. Configure Your Settings (Optional)
 
 `answers.json` only contains the resource group name — no subscription ID required:
 
@@ -96,7 +100,7 @@ The Codespaces devcontainer includes:
 
 The deployment scripts will prompt you to pick a subscription interactively after login. Resource naming and location are configured in [`infra/main.bicepparam`](infra/main.bicepparam). Edit that file if you want to customise names or the default `eastus2` region.
 
-### 2. Deploy the Lab
+### 3. Deploy the Lab
 
 **Linux / Codespaces (Bash):**
 ```bash
@@ -118,7 +122,7 @@ Both scripts will:
 - Deploy `infra/main.bicep` as a single ARM deployment
 - Print a deployment summary including the Key Vault name and how to retrieve the password
 
-### 3. Retrieve VM Password and Connect via Bastion
+### 4. Retrieve VM Password and Connect via Bastion
 
 The VM password was auto-generated and stored in Key Vault. Retrieve it with:
 
@@ -142,7 +146,7 @@ Then connect to the VM:
 5. Enter username `azureuser`
 6. Paste the password you retrieved from Key Vault above
 
-### 4. Test DNS Blocking
+### 5. Test DNS Blocking
 
 From the Bastion browser terminal:
 ```bash
@@ -163,14 +167,14 @@ dig @8.8.8.8 google.com  # Test with external DNS for comparison
 - **Blocked domains**: Should return `blockpolicy.azuredns.invalid`
 - **Allowed domains**: Should return IP addresses normally
 
-### 5. Monitor DNS Activity
+### 6. Monitor DNS Activity
 
 View DNS logs in Log Analytics:
 1. Go to your resource group in Azure Portal
 2. Open the Log Analytics workspace (`law-dns-security-lab`)
 3. Click "Logs" and run KQL queries
 
-### 6. Clean Up
+### 7. Clean Up
 
 **Linux / Codespaces:**
 ```bash
@@ -412,7 +416,7 @@ The lab creates a DNS security policy with the following configuration:
 ### Scenario 1: Basic DNS Blocking Test
 
 1. Deploy the lab environment
-2. Retrieve the VM password from Key Vault (see [Quick Start step 3](#3-retrieve-vm-password-and-connect-via-bastion))
+2. Retrieve the VM password from Key Vault (see [Quick Start step 4](#4-retrieve-vm-password-and-connect-via-bastion))
 3. Connect to the VM via **Azure Bastion** (Connect → Connect via Bastion in the Portal)
 4. Test DNS blocking with these commands:
 
@@ -471,7 +475,7 @@ The configuration should look like this:
 
 #### Step 2 — Download and run the DNS test script
 
-Connect to the VM via Bastion (see [Quick Start step 3](#3-retrieve-vm-password-and-connect-via-bastion)), then run:
+Connect to the VM via Bastion (see [Quick Start step 4](#4-retrieve-vm-password-and-connect-via-bastion)), then run:
 
 ```bash
 # Download the test script

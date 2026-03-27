@@ -40,18 +40,21 @@ fi
 # ── Azure login (reuse existing session, login only if needed) ─────────────────
 echo ""
 echo "Checking for existing Azure session..."
-mapfile -t SUB_IDS < <(az account list --query '[?state==`Enabled`].id' --output tsv 2>/dev/null)
+SUB_IDS=()
+while IFS= read -r line; do SUB_IDS+=("$line"); done < <(az account list --query '[?state==`Enabled`].id' --output tsv 2>/dev/null)
 
 if [[ ${#SUB_IDS[@]} -eq 0 ]]; then
     echo "No active session found. Logging into Azure..."
     az login --use-device-code
     az config set extension.dynamic_install_allow_preview=true 2>/dev/null || true
     az config set extension.use_dynamic_install=yes_without_prompt 2>/dev/null || true
-    mapfile -t SUB_IDS < <(az account list --query '[?state==`Enabled`].id' --output tsv)
+    SUB_IDS=()
+    while IFS= read -r line; do SUB_IDS+=("$line"); done < <(az account list --query '[?state==`Enabled`].id' --output tsv)
 fi
 
 # ── Subscription selection ─────────────────────────────────────────────────────
-mapfile -t SUB_NAMES < <(az account list --query '[?state==`Enabled`].name' --output tsv)
+SUB_NAMES=()
+while IFS= read -r line; do SUB_NAMES+=("$line"); done < <(az account list --query '[?state==`Enabled`].name' --output tsv)
 
 if [[ ${#SUB_IDS[@]} -eq 0 ]]; then
     echo "Error: No enabled Azure subscriptions found for the logged-in account."
@@ -126,8 +129,8 @@ if [[ $DEPLOY_EXIT -ne 0 ]]; then
     echo ""
 
     if echo "$DEPLOY_OUTPUT" | grep -qi "SkuNotAvailable"; then
-        SKU=$(echo "$DEPLOY_OUTPUT" | grep -oP 'Standard_\w+' | head -1)
-        LOC=$(echo "$DEPLOY_OUTPUT" | grep -oP "location '\K[^']+" | head -1)
+        SKU=$(echo "$DEPLOY_OUTPUT" | grep -o 'Standard_[A-Za-z0-9_]*' | head -1)
+        LOC=$(echo "$DEPLOY_OUTPUT" | sed -n "s/.*location '\([^']*\)'.*/\1/p" | head -1)
         SKU=${SKU:-"the requested SKU"}
         LOC=${LOC:-"the selected region"}
 

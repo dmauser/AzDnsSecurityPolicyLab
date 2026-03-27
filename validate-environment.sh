@@ -65,49 +65,12 @@ validate_json "answers.json"
 
 if [[ -f "answers.json" ]]; then
     # Check required fields
-    SUBSCRIPTION_ID=$(jq -r '.subscriptionId' answers.json 2>/dev/null)
     RESOURCE_GROUP_NAME=$(jq -r '.resourceGroupName' answers.json 2>/dev/null)
-    LOCATION=$(jq -r '.location' answers.json 2>/dev/null)
-    
-    if [[ -n "$SUBSCRIPTION_ID" && "$SUBSCRIPTION_ID" != "null" && "$SUBSCRIPTION_ID" != "" ]]; then
-        echo "✅ subscriptionId is configured"
-        
-        # Check if the subscription ID matches current Azure CLI context
-        if az account show &> /dev/null; then
-            CURRENT_SUB_ID=$(az account show --query id -o tsv 2>/dev/null)
-            if [[ "$SUBSCRIPTION_ID" == "$CURRENT_SUB_ID" ]]; then
-                echo "✅ subscriptionId matches current Azure CLI context"
-            else
-                echo "ℹ️  subscriptionId ($SUBSCRIPTION_ID) differs from current Azure CLI context ($CURRENT_SUB_ID)"
-                echo "   The deployment script will set the correct context"
-            fi
-        fi
-    else
-        echo "❌ subscriptionId is required in answers.json"
-        EXIT_CODE=1
-    fi
     
     if [[ -n "$RESOURCE_GROUP_NAME" && "$RESOURCE_GROUP_NAME" != "null" ]]; then
         echo "✅ resourceGroupName is configured: $RESOURCE_GROUP_NAME"
     else
         echo "❌ resourceGroupName is required in answers.json"
-        EXIT_CODE=1
-    fi
-    
-    if [[ -n "$LOCATION" && "$LOCATION" != "null" ]]; then
-        echo "✅ location is configured: $LOCATION"
-        
-        # Check if location is valid (if Azure CLI is logged in)
-        if az account show &> /dev/null; then
-            if az account list-locations --query "[?name=='$LOCATION']" | jq -e '. | length > 0' &> /dev/null; then
-                echo "✅ location '$LOCATION' is valid"
-            else
-                echo "⚠️  location '$LOCATION' may not be valid"
-                echo "   Run 'az account list-locations --output table' to see available locations"
-            fi
-        fi
-    else
-        echo "❌ location is required in answers.json"
         EXIT_CODE=1
     fi
 fi
@@ -153,9 +116,10 @@ if [[ $EXIT_CODE -eq 0 ]]; then
     echo ""
     echo "Next steps:"
     echo "1. Run './deploy-lab.sh' to start the lab deployment"
-    echo "2. After deployment, access the VM via Azure Portal Serial Console"
-    echo "3. Test DNS blocking with: nslookup malicious.contoso.com"
-    echo "4. Clean up with './remove-lab.sh' when done"
+    echo "2. Retrieve the VM password from Key Vault (shown in deployment output)"
+    echo "3. Connect to the VM via Azure Bastion (Portal > VM > Connect > Bastion)"
+    echo "4. Test DNS blocking with: dig malicious.contoso.com"
+    echo "5. Clean up with './remove-lab.sh' when done"
 else
     echo "❌ VALIDATION FAILED"
     echo "=========================================="
