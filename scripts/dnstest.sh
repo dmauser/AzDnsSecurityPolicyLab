@@ -1,16 +1,16 @@
 #!/bin/bash
 #
-# Script: dnstest-domain.sh
+# Script: dnstest.sh
 # Description: DNS security testing utility that queries domains against a blacklist.
 #              Downloads a blacklist of known malicious/suspicious domains and performs
 #              DNS lookups (dig queries) on each domain to verify their resolution status.
 #
-# Usage: ./dnstest-domain.sh [keyword]
-#        ./dnstest-domain.sh -h
+# Usage: ./dnstest.sh [keyword]
+#        ./dnstest.sh -h
 #
 # Options:
 #   keyword     Search keyword to filter blacklist domains (optional)
-#               Example: ./dnstest-domain.sh malware
+#               Example: ./dnstest.sh malware
 #   -h          Display this help message and exit
 #
 # Output:
@@ -26,8 +26,8 @@
 #   https://github.com/fabriziosalmi/blacklists/releases/download/latest/blacklist.txt
 #
 # Example:
-#   ./dnstest-domain.sh malware
-#   ./dnstest-domain.sh -h
+#   ./dnstest.sh malware
+#   ./dnstest.sh -h
 #
 
 # Set log file
