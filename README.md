@@ -446,6 +446,72 @@ dig google.com +short
 3. **Analyze Security Events**: Use KQL queries to analyze blocked vs. allowed queries
 4. **Set Up Alerts**: Configure Azure Monitor alerts for suspicious DNS activity patterns
 
+### Scenario 4: DNS Threat Intelligence Testing
+
+This scenario enables **Azure DNS Threat Intelligence** on your DNS Security Policy and runs a bulk DNS test against a community-maintained blacklist of known malicious domains. It shows how Azure DNS blocks threat-intel-flagged domains and how to inspect the results in Log Analytics.
+
+#### Step 1 — Enable DNS Threat Intelligence
+
+In the Azure Portal:
+
+1. Navigate to your **DNS Security Policy** (`dns-security-policy-lab`)
+2. Under **Settings**, select **DNS Security Rule**
+3. Enable **Threat Intelligence** and set the action to **Block** (or **Alert** if you only want logging)
+4. Click **Save**
+
+The configuration should look like this:
+
+![DNS Threat Intelligence configuration](media/DNSThreadIntel-Config.png)
+
+#### Step 2 — Download and run the DNS test script
+
+Connect to the VM via Bastion (see [Quick Start step 4](#4-retrieve-vm-password-and-connect-via-bastion)), then run:
+
+```bash
+# Download the test script
+curl -L https://raw.githubusercontent.com/dmauser/AzDnsSecurityPolicyLab/refs/heads/main/scripts/dnstest.sh -o dnstest.sh
+chmod +x dnstest.sh
+
+# Run against the full blacklist
+./dnstest.sh
+
+# Or filter by keyword (e.g. only domains containing "malware")
+./dnstest.sh -q malware
+```
+
+**What the script does:**
+
+The `dnstest.sh` script is a DNS security testing utility. It downloads a public blacklist of known malicious/suspicious domains from [fabriziosalmi/blacklists](https://github.com/fabriziosalmi/blacklists) and performs a `dig` (DNS lookup) against each domain. This generates a large volume of DNS queries that the Azure DNS Security Policy and Threat Intelligence engine will evaluate. The script:
+
+- Installs `dig` automatically if it is not present on the VM
+- Logs every query result with a timestamp to a log file (`dnstest_<timestamp>.log`)
+- Supports an optional `-q <keyword>` filter to test only domains matching a keyword
+- Prints results to both the console and the log file for later review
+
+Domains flagged by Azure Threat Intelligence will be blocked or alerted depending on your policy configuration. Domains not flagged will resolve normally.
+
+> **⚠️ Disclaimer:** The `dnstest.sh` script queries a large number of domains from a third-party blacklist. While the script only performs DNS lookups (it does not visit or download content from those domains), use it at your own risk and only in isolated lab/test environments. The blacklist content is maintained by a third party and may change without notice. Do not run this script against production DNS infrastructure.
+
+#### Step 3 — Review results in Log Analytics
+
+After running the script, wait 2-5 minutes for logs to appear in the Log Analytics workspace. Navigate to **Log Analytics** → **Logs** and run:
+
+```kusto
+// Threat Intelligence blocked queries
+DNSQueryLogs
+| where TimeGenerated > ago(1h)
+| where ResolverPolicyRuleAction in ("Deny", "Alert")
+| summarize BlockedCount = count() by QueryName
+| order by BlockedCount desc
+| take 50
+```
+
+You should see results similar to this:
+
+![DNS Threat Intelligence results in Log Analytics](media/DNSThreadIntel.png)
+
+The log entries show which domains were blocked by Threat Intelligence versus those blocked by your custom DNS Security Rules.
+
 ## 🛠️ Alternative Scripts
 
 ### Environment Validation
@@ -475,9 +541,14 @@ AzDnsSecurityPolicyLab/
 ├── remove-lab.sh               # Bash cleanup
 ├── validate-environment.sh     # Pre-deployment validation
 ├── test-dns-policy.sh          # DNS testing instructions
-└── infra/
-    ├── main.bicep              # All Azure resource definitions
-    └── main.bicepparam         # Parameter values (names, region, SKUs)
+├── infra/
+│   ├── main.bicep              # All Azure resource definitions
+│   └── main.bicepparam         # Parameter values (names, region, SKUs)
+├── scripts/
+│   └── dnstest.sh              # DNS blacklist testing utility
+└── media/
+    ├── DNSThreadIntel-Config.png  # Threat Intel config screenshot
+    └── DNSThreadIntel.png         # Threat Intel Log Analytics results
 ```
 
 ## 🔒 Security Features
