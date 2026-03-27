@@ -90,12 +90,26 @@ if ($confirm -ne $resourceGroupName) {
     exit 0
 }
 
+# ── Discover Key Vault(s) to purge after RG deletion ─────────────────────────
+$vaultNames = @(Get-AzKeyVault -ResourceGroupName $resourceGroupName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty VaultName)
+
 # ── Delete resource group ─────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "Deleting resource group '$resourceGroupName'..." -ForegroundColor Cyan
-Remove-AzResourceGroup -Name $resourceGroupName -Force -AsJob | Out-Null
+Remove-AzResourceGroup -Name $resourceGroupName -Force | Out-Null
+Write-Host "Resource group deleted." -ForegroundColor Green
+
+# ── Purge soft-deleted Key Vaults ─────────────────────────────────────────────
+foreach ($vaultName in $vaultNames) {
+    Write-Host "Purging soft-deleted Key Vault '$vaultName'..." -ForegroundColor Cyan
+    try {
+        Remove-AzKeyVault -VaultName $vaultName -InRemovedState -Force -Location (Get-AzDeletedVault -VaultName $vaultName).Properties.Location
+        Write-Host "Key Vault '$vaultName' purged." -ForegroundColor Green
+    } catch {
+        Write-Host "Could not purge Key Vault '$vaultName': $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
 
 Write-Host ""
-Write-Host "Deletion initiated. The resource group is being removed in the background." -ForegroundColor Green
-Write-Host "You can monitor progress in the Azure Portal under Resource Groups." -ForegroundColor Green
+Write-Host "Lab removal complete." -ForegroundColor Green
 

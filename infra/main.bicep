@@ -53,9 +53,13 @@ var tags = {
   Environment: 'Lab'
 }
 
+// utcNow() changes every deployment, ensuring Key Vault names never collide with soft-deleted vaults.
+@description('Deployment timestamp for unique naming. Do not supply manually.')
+param deploymentTimestamp string = utcNow('yyyyMMddHHmmss')
+
 // Unique suffixes derived from the resource group to avoid naming collisions on redeploy
 var storageAccountName = 'sadiag${uniqueString(resourceGroup().id)}'
-var keyVaultName = 'kv-lab-${uniqueString(resourceGroup().id)}'
+var keyVaultName = 'kv-${uniqueString(resourceGroup().id, deploymentTimestamp)}'
 
 // VM password is randomly generated each deployment and stored in Key Vault.
 // Format: 'Lab1!' prefix (satisfies all 4 complexity categories) + a GUID (36 chars of hex/hyphens)
