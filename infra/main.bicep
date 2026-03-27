@@ -258,6 +258,9 @@ resource bastion 'Microsoft.Network/bastionHosts@2024-01-01' = {
       id: vnet.id
     }
   }
+  dependsOn: [
+    subnet
+  ]
 }
 
 // DNS Resolver Domain List with malicious domains to block
