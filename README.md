@@ -33,7 +33,7 @@ This lab creates a complete Azure environment with:
 
 ![Architecture Diagram](media/architecture-diagram.svg)
 
-> [✏️ Edit this diagram in Excalidraw](media/architecture-diagram.excalidraw)
+> [✏️ Edit this diagram in Excalidraw](https://excalidraw.com/#url=https://raw.githubusercontent.com/dmauser/AzDnsSecurityPolicyLab/refs/heads/main/media/architecture-diagram.excalidraw)
 
 ## 📋 Prerequisites
 
