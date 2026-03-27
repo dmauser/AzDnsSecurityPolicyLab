@@ -1,2 +1,6 @@
 # Bicep compiled output — commit the .bicep source, not the generated ARM JSON
 infra/*.json
+
+# Runtime / test artefacts
+*.log
+blacklist.txt

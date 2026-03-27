@@ -7,19 +7,20 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=========================================="
 echo " Azure DNS Security Policy Lab Deployment"
 echo "=========================================="
 
 # ── Read configuration ─────────────────────────────────────────────────────────
-if [[ ! -f "$SCRIPT_DIR/answers.json" ]]; then
-    echo "Error: answers.json not found."
+if [[ ! -f "$REPO_ROOT/answers.json" ]]; then
+    echo "Error: answers.json not found in repo root."
     echo "Copy answers.json.template to answers.json."
     exit 1
 fi
 
-RESOURCE_GROUP_NAME=$(jq -r '.resourceGroupName' "$SCRIPT_DIR/answers.json")
+RESOURCE_GROUP_NAME=$(jq -r '.resourceGroupName' "$REPO_ROOT/answers.json")
 
 if [[ -z "$RESOURCE_GROUP_NAME" || "$RESOURCE_GROUP_NAME" == "null" ]]; then
     echo "Error: resourceGroupName is required in answers.json."
@@ -104,8 +105,8 @@ az group create \
     --output none
 
 # ── Deploy Bicep ───────────────────────────────────────────────────────────────
-TEMPLATE_FILE="$SCRIPT_DIR/infra/main.bicep"
-PARAMS_FILE="$SCRIPT_DIR/infra/main.bicepparam"
+TEMPLATE_FILE="$REPO_ROOT/infra/main.bicep"
+PARAMS_FILE="$REPO_ROOT/infra/main.bicepparam"
 
 echo ""
 echo "Deploying Bicep template..."
@@ -158,7 +159,7 @@ if [[ $DEPLOY_EXIT -ne 0 ]]; then
     fi
 
     echo "The resource group '$RESOURCE_GROUP_NAME' may contain partial resources."
-    echo "To clean up: ./remove-lab.sh  (or: az group delete -n $RESOURCE_GROUP_NAME --no-wait)"
+    echo "To clean up: ./scripts/remove-lab.sh  (or: az group delete -n $RESOURCE_GROUP_NAME --no-wait)"
     echo ""
     exit 1
 fi

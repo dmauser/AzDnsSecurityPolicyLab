@@ -104,13 +104,13 @@ The deployment scripts will prompt you to pick a subscription interactively afte
 
 **Linux / Codespaces (Bash):**
 ```bash
-./deploy-lab.sh
+./scripts/deploy-lab.sh
 ```
-> If you get "Permission denied", run `chmod +x *.sh` first.
+> If you get "Permission denied", run `chmod +x scripts/*.sh` first.
 
 **Windows (PowerShell):**
 ```powershell
-.\Deploy-Lab.ps1
+.\scripts\deploy-lab.ps1
 ```
 > Requires the `Az.Resources` PowerShell module (`Install-Module Az.Resources`). The script will install it automatically if missing.
 
@@ -178,12 +178,12 @@ View DNS logs in Log Analytics:
 
 **Linux / Codespaces:**
 ```bash
-./remove-lab.sh
+./scripts/remove-lab.sh
 ```
 
 **Windows (PowerShell):**
 ```powershell
-.\Remove-Lab.ps1
+.\scripts\remove-lab.ps1
 ```
 
 ## 🏗️ Infrastructure as Code
@@ -195,10 +195,10 @@ All Azure resources are defined in [`infra/main.bicep`](infra/main.bicep) and de
 | `infra/main.bicep` | Bicep template — all resource definitions |
 | `infra/main.bicepparam` | Parameter values (names, location, SKUs) |
 | `answers.json` | Resource group name (no subscription ID needed) |
-| `deploy-lab.sh` | Bash deployment wrapper (Azure CLI) |
-| `Deploy-Lab.ps1` | PowerShell deployment wrapper (Az module) |
-| `remove-lab.sh` | Bash cleanup script |
-| `Remove-Lab.ps1` | PowerShell cleanup script |
+| `scripts/deploy-lab.sh` | Bash deployment wrapper (Azure CLI) |
+| `scripts/deploy-lab.ps1` | PowerShell deployment wrapper (Az module) |
+| `scripts/remove-lab.sh` | Bash cleanup script |
+| `scripts/remove-lab.ps1` | PowerShell cleanup script |
 
 To deploy directly with Azure CLI (no script):
 ```bash
@@ -708,7 +708,7 @@ ThreatIntelIndicators
 Before deployment, you can validate your environment:
 
 ```bash
-./validate-environment.sh
+./scripts/validate-environment.sh
 ```
 
 This checks for:
@@ -721,23 +721,24 @@ This checks for:
 ```
 AzDnsSecurityPolicyLab/
 ├── README.md                    # This documentation
-├── FILE_OVERVIEW.md             # Detailed file descriptions
 ├── answers.json                 # Resource group name
 ├── answers.json.template        # Template for configuration
-├── Deploy-Lab.ps1              # PowerShell deployment (Az module)
-├── Remove-Lab.ps1              # PowerShell cleanup (Az module)
-├── deploy-lab.sh               # Bash deployment (Azure CLI)
-├── remove-lab.sh               # Bash cleanup
-├── validate-environment.sh     # Pre-deployment validation
-├── test-dns-policy.sh          # DNS testing instructions
+├── .gitignore                   # Git ignore rules
 ├── infra/
 │   ├── main.bicep              # All Azure resource definitions
 │   └── main.bicepparam         # Parameter values (names, region, SKUs)
 ├── scripts/
+│   ├── deploy-lab.ps1          # PowerShell deployment (Az module)
+│   ├── deploy-lab.sh           # Bash deployment (Azure CLI)
+│   ├── remove-lab.ps1          # PowerShell cleanup (Az module)
+│   ├── remove-lab.sh           # Bash cleanup
+│   ├── validate-environment.sh # Pre-deployment validation
 │   └── dnstest.sh              # DNS blacklist testing utility
-└── media/
-    ├── DNSThreadIntel-Config.png  # Threat Intel config screenshot
-    └── DNSThreadIntel.png         # Threat Intel Log Analytics results
+├── media/
+│   ├── DNSThreadIntel-Config.png  # Threat Intel config screenshot
+│   └── DNSThreadIntel.png         # Threat Intel Log Analytics results
+└── .devcontainer/
+    └── devcontainer.json        # Codespaces configuration
 ```
 
 ## 🔒 Security Features
@@ -772,8 +773,8 @@ AzDnsSecurityPolicyLab/
 
 **"Permission denied" when running scripts**
 - This happens when shell scripts don't have execute permissions
-- Fix with: `chmod +x *.sh` (should be automatic in Codespaces)
-- If still having issues, run: `bash deploy-lab.sh` instead of `./deploy-lab.sh`
+- Fix with: `chmod +x scripts/*.sh` (should be automatic in Codespaces)
+- If still having issues, run: `bash scripts/deploy-lab.sh` instead of `./scripts/deploy-lab.sh`
 
 **"No enabled subscriptions found"**
 - Ensure the logged-in account has at least one enabled Azure subscription
@@ -803,8 +804,7 @@ AzDnsSecurityPolicyLab/
 
 ### Getting Help
 
-1. Check the [FILE_OVERVIEW.md](FILE_OVERVIEW.md) for detailed file descriptions
-2. Review deployment logs for specific error messages
+1. Review deployment logs for specific error messages
 3. Ensure all prerequisites are met in your Azure subscription
 4. Use the validation script to check your environment
 
@@ -828,7 +828,7 @@ This lab is designed for educational purposes. Feel free to modify the scripts a
 
 **⚠️ Important Notes:**
 - This lab creates billable Azure resources (~$9-12/month while running)
-- Remember to clean up resources when done (`./remove-lab.sh` or `Remove-Lab.ps1`)
+- Remember to clean up resources when done (`./scripts/remove-lab.sh` or `.\scripts\remove-lab.ps1`)
 - VM access is via **Azure Bastion Developer** (browser SSH in Portal) — no public IP or SSH key required
 - Retrieve the VM password from Key Vault after deployment (name shown in deployment output)
 - DNS changes may take 2-3 minutes to propagate

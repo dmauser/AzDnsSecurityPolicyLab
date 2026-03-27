@@ -3,6 +3,9 @@
 # Azure DNS Security Policy Lab - Environment Validation Script
 # This script validates the environment before deployment in GitHub Codespaces
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 echo "=========================================="
 echo "Azure DNS Security Policy Lab Validation"
 echo "=========================================="
@@ -61,11 +64,11 @@ fi
 echo ""
 echo "Validating Configuration:"
 echo "------------------------"
-validate_json "answers.json"
+validate_json "$REPO_ROOT/answers.json"
 
-if [[ -f "answers.json" ]]; then
+if [[ -f "$REPO_ROOT/answers.json" ]]; then
     # Check required fields
-    RESOURCE_GROUP_NAME=$(jq -r '.resourceGroupName' answers.json 2>/dev/null)
+    RESOURCE_GROUP_NAME=$(jq -r '.resourceGroupName' "$REPO_ROOT/answers.json" 2>/dev/null)
     
     if [[ -n "$RESOURCE_GROUP_NAME" && "$RESOURCE_GROUP_NAME" != "null" ]]; then
         echo "✅ resourceGroupName is configured: $RESOURCE_GROUP_NAME"
@@ -79,18 +82,18 @@ fi
 echo ""
 echo "Checking Script Permissions:"
 echo "---------------------------"
-if [[ -x "deploy-lab.sh" ]]; then
-    echo "✅ deploy-lab.sh is executable"
+if [[ -x "$REPO_ROOT/scripts/deploy-lab.sh" ]]; then
+    echo "✅ scripts/deploy-lab.sh is executable"
 else
-    echo "⚠️  deploy-lab.sh needs execute permission"
-    echo "   Run: chmod +x deploy-lab.sh"
+    echo "⚠️  scripts/deploy-lab.sh needs execute permission"
+    echo "   Run: chmod +x scripts/deploy-lab.sh"
 fi
 
-if [[ -x "remove-lab.sh" ]]; then
-    echo "✅ remove-lab.sh is executable"
+if [[ -x "$REPO_ROOT/scripts/remove-lab.sh" ]]; then
+    echo "✅ scripts/remove-lab.sh is executable"
 else
-    echo "⚠️  remove-lab.sh needs execute permission"
-    echo "   Run: chmod +x remove-lab.sh"
+    echo "⚠️  scripts/remove-lab.sh needs execute permission"
+    echo "   Run: chmod +x scripts/remove-lab.sh"
 fi
 
 # Codespace-specific information
@@ -115,11 +118,11 @@ if [[ $EXIT_CODE -eq 0 ]]; then
     echo "Your environment is ready for deployment!"
     echo ""
     echo "Next steps:"
-    echo "1. Run './deploy-lab.sh' to start the lab deployment"
+    echo "1. Run './scripts/deploy-lab.sh' to start the lab deployment"
     echo "2. Retrieve the VM password from Key Vault (shown in deployment output)"
     echo "3. Connect to the VM via Azure Bastion (Portal > VM > Connect > Bastion)"
     echo "4. Test DNS blocking with: dig malicious.contoso.com"
-    echo "5. Clean up with './remove-lab.sh' when done"
+    echo "5. Clean up with './scripts/remove-lab.sh' when done"
 else
     echo "❌ VALIDATION FAILED"
     echo "=========================================="

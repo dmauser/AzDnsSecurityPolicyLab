@@ -8,7 +8,7 @@
     Reads the resource group name from answers.json, logs in with device code,
     lets you choose a subscription interactively, and prompts for the VM password.
 .EXAMPLE
-    .\Deploy-Lab.ps1
+    .\scripts\deploy-lab.ps1
 #>
 
 [CmdletBinding()]
@@ -47,9 +47,10 @@ if (-not (Get-Command bicep -ErrorAction SilentlyContinue)) {
 }
 
 # ── Read configuration ────────────────────────────────────────────────────────
-$answersFile = Join-Path $PSScriptRoot 'answers.json'
+$repoRoot = Split-Path $PSScriptRoot -Parent
+$answersFile = Join-Path $repoRoot 'answers.json'
 if (-not (Test-Path $answersFile)) {
-    Write-Error "answers.json not found. Copy answers.json.template to answers.json."
+    Write-Error "answers.json not found. Copy answers.json.template to answers.json in the repo root."
 }
 
 $config = Get-Content $answersFile -Raw | ConvertFrom-Json
@@ -128,7 +129,7 @@ New-AzResourceGroup `
     -Force | Out-Null
 
 # ── Deploy Bicep ──────────────────────────────────────────────────────────────
-$infraDir       = Join-Path $PSScriptRoot 'infra'
+$infraDir       = Join-Path $repoRoot 'infra'
 $templateFile   = Join-Path $infraDir 'main.bicep'
 $parametersFile = Join-Path $infraDir 'main.bicepparam'
 
@@ -205,7 +206,7 @@ if ($azExitCode -ne 0) {
 
     # Clean up the partial resource group if desired
     Write-Host "The resource group '$resourceGroupName' may contain partial resources." -ForegroundColor DarkGray
-    Write-Host "To clean up: Remove-Lab.ps1  (or: az group delete -n $resourceGroupName --no-wait)" -ForegroundColor DarkGray
+    Write-Host "To clean up: .\scripts\remove-lab.ps1  (or: az group delete -n $resourceGroupName --no-wait)" -ForegroundColor DarkGray
     Write-Host ""
     exit 1
 }

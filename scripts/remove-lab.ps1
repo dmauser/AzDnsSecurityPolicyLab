@@ -3,7 +3,7 @@
 .SYNOPSIS
     Removes the Azure DNS Security Policy Lab resource group and all resources.
 .EXAMPLE
-    .\Remove-Lab.ps1
+    .\scripts\remove-lab.ps1
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
@@ -24,21 +24,25 @@ if (-not (Get-Module -ListAvailable -Name Az.Resources -ErrorAction SilentlyCont
 Import-Module Az.Resources -ErrorAction Stop
 
 # ── Read configuration ────────────────────────────────────────────────────────
-$answersFile = Join-Path $PSScriptRoot 'answers.json'
+$repoRoot = Split-Path $PSScriptRoot -Parent
+$answersFile = Join-Path $repoRoot 'answers.json'
 if (-not (Test-Path $answersFile)) {
-    Write-Error "answers.json not found."
+    Write-Error "answers.json not found in the repo root."
 }
 
 $config = Get-Content $answersFile -Raw | ConvertFrom-Json
 $resourceGroupName = $config.resourceGroupName
 
-# ── Azure login ───────────────────────────────────────────────────────────────
+# ── Azure login (reuse existing session, login only if needed) ────────────────
 Write-Host ""
-Write-Host "Logging into Azure..." -ForegroundColor Cyan
-Connect-AzAccount -UseDeviceAuthentication | Out-Null
+Write-Host "Checking for existing Azure session..." -ForegroundColor Cyan
+$available = @(Get-AzSubscription -ErrorAction SilentlyContinue | Where-Object State -eq 'Enabled')
 
-# ── Subscription selection ────────────────────────────────────────────────────
-$available = Get-AzSubscription | Where-Object State -eq 'Enabled'
+if ($available.Count -eq 0) {
+    Write-Host "No active session found. Logging into Azure..." -ForegroundColor Yellow
+    Connect-AzAccount -UseDeviceAuthentication | Out-Null
+    $available = @(Get-AzSubscription | Where-Object State -eq 'Enabled')
+}
 
 if ($available.Count -eq 0) {
     Write-Error "No enabled Azure subscriptions found for the logged-in account."

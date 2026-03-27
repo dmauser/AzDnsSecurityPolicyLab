@@ -3,44 +3,52 @@
 # Azure DNS Security Policy Lab Removal Script
 # This script removes the entire DNS security policy lab environment
 
-set -e  # Exit on any error
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=========================================="
-echo "Azure DNS Security Policy Lab Removal"
+echo " Azure DNS Security Policy Lab Removal"
 echo "=========================================="
 
-# Check if answers.json exists
-if [[ ! -f "answers.json" ]]; then
-    echo "Error: answers.json file not found. Please ensure it exists with the lab configuration."
+# ── Read configuration ─────────────────────────────────────────────────────────
+if [[ ! -f "$REPO_ROOT/answers.json" ]]; then
+    echo "Error: answers.json not found in repo root."
     exit 1
 fi
 
-# Read configuration from answers.json
-RESOURCE_GROUP_NAME=$(jq -r '.resourceGroupName' answers.json)
+RESOURCE_GROUP_NAME=$(jq -r '.resourceGroupName' "$REPO_ROOT/answers.json")
 
-# Validate required fields
 if [[ -z "$RESOURCE_GROUP_NAME" || "$RESOURCE_GROUP_NAME" == "null" ]]; then
     echo "Error: resourceGroupName is required in answers.json"
     exit 1
 fi
 
-# Login to Azure with device code
+# ── Azure login (reuse existing session, login only if needed) ─────────────────
 echo ""
-echo "Logging into Azure..."
-az login --use-device-code
+echo "Checking for existing Azure session..."
+SUB_IDS=()
+while IFS= read -r line; do SUB_IDS+=("$line"); done < <(az account list --query '[?state==`Enabled`].id' --output tsv 2>/dev/null)
 
-# Subscription selection
-echo ""
-echo "Available subscriptions:"
+if [[ ${#SUB_IDS[@]} -eq 0 ]]; then
+    echo "No active session found. Logging into Azure..."
+    az login --use-device-code
+    SUB_IDS=()
+    while IFS= read -r line; do SUB_IDS+=("$line"); done < <(az account list --query '[?state==`Enabled`].id' --output tsv)
+fi
 
-mapfile -t SUB_NAMES < <(az account list --query '[?state==`Enabled`].name' --output tsv)
-mapfile -t SUB_IDS   < <(az account list --query '[?state==`Enabled`].id'   --output tsv)
+# ── Subscription selection ─────────────────────────────────────────────────────
+SUB_NAMES=()
+while IFS= read -r line; do SUB_NAMES+=("$line"); done < <(az account list --query '[?state==`Enabled`].name' --output tsv)
 
 if [[ ${#SUB_IDS[@]} -eq 0 ]]; then
     echo "Error: No enabled Azure subscriptions found for the logged-in account."
     exit 1
 fi
 
+echo ""
+echo "Available subscriptions:"
 for i in "${!SUB_NAMES[@]}"; do
     printf "  [%d] %s\n      %s\n" $((i + 1)) "${SUB_NAMES[$i]}" "${SUB_IDS[$i]}"
 done
@@ -61,7 +69,7 @@ SUBSCRIPTION_NAME="${SUB_NAMES[$((SELECTED_INDEX - 1))]}"
 az account set --subscription "$SUBSCRIPTION_ID"
 echo "Using subscription: $SUBSCRIPTION_NAME ($SUBSCRIPTION_ID)"
 
-# Check if resource group exists
+# ── Check resource group exists ────────────────────────────────────────────────
 echo ""
 echo "Checking if resource group exists: $RESOURCE_GROUP_NAME"
 if ! az group show --name "$RESOURCE_GROUP_NAME" &>/dev/null; then
@@ -69,20 +77,20 @@ if ! az group show --name "$RESOURCE_GROUP_NAME" &>/dev/null; then
     exit 0
 fi
 
-# Confirm deletion
+# ── Confirm deletion ───────────────────────────────────────────────────────────
 echo ""
 echo "WARNING: This will permanently delete the following resource group and ALL its contents:"
-echo "Resource Group: $RESOURCE_GROUP_NAME"
-echo "Subscription: $(az account show --query name -o tsv)"
+echo "  Resource Group : $RESOURCE_GROUP_NAME"
+echo "  Subscription   : $SUBSCRIPTION_NAME"
 echo ""
-read -p "Are you sure you want to continue? (yes/no): " CONFIRM
+read -rp "Are you sure you want to continue? (yes/no): " CONFIRM
 
 if [[ "$CONFIRM" != "yes" ]]; then
     echo "Deletion cancelled."
     exit 0
 fi
 
-# List resources in the resource group before deletion
+# ── List and delete ────────────────────────────────────────────────────────────
 echo ""
 echo "Resources to be deleted:"
 echo "------------------------"
@@ -92,11 +100,15 @@ echo ""
 echo "Deleting resource group: $RESOURCE_GROUP_NAME"
 echo "This may take several minutes..."
 
-# Delete the resource group and all its resources
 az group delete \
     --name "$RESOURCE_GROUP_NAME" \
     --yes \
     --no-wait
+
+echo ""
+echo "Deletion initiated in the background."
+echo "Monitor progress in the Azure Portal under Resource Groups."
+echo ""
 
 echo ""
 echo "=========================================="
