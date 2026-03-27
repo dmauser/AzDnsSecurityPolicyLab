@@ -243,8 +243,12 @@ Write-Host "  Blocked Domains     : $($(Get-Out blockedDomains) -join ', ')"
 Write-Host "  Key Vault           : $(Get-Out keyVaultName)"
 Write-Host ""
 Write-Host "Retrieve VM Password from Key Vault:" -ForegroundColor Yellow
-Write-Host "  PowerShell: Get-AzKeyVaultSecret -VaultName '$(Get-Out keyVaultName)' -Name 'vm-admin-password' -AsPlainText" -ForegroundColor White
-Write-Host "  Azure CLI : az keyvault secret show --vault-name '$(Get-Out keyVaultName)' --name 'vm-admin-password' --query value -o tsv" -ForegroundColor White
+Write-Host ""
+Write-Host "  PowerShell:" -ForegroundColor White
+Write-Host "    Get-AzKeyVaultSecret -VaultName '$(Get-Out keyVaultName)' -Name 'vm-admin-password' -AsPlainText" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  Azure CLI:" -ForegroundColor White
+Write-Host "    az keyvault secret show --vault-name '$(Get-Out keyVaultName)' --name 'vm-admin-password' --query value -o tsv" -ForegroundColor Gray
 Write-Host ""
 Write-Host "VM Access via Azure Bastion (Developer SKU):" -ForegroundColor Yellow
 Write-Host "  1. Go to https://portal.azure.com"

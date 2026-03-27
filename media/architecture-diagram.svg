@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 -45 1170 840" width="1170" height="840" font-family="Segoe UI, Arial, sans-serif">
+  <style>
+    text { dominant-baseline: hanging; }
+  </style>
+
+  <!-- Title -->
+  <text x="600" y="-30" font-size="24" font-weight="bold" fill="#1e1e1e" text-anchor="middle">Azure DNS Security Policy Lab — Architecture</text>
+
+  <!-- Azure Subscription box -->
+  <rect x="40" y="20" width="1120" height="780" rx="12" fill="#e7f5ff" fill-opacity="0.3" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="60" y="35" font-size="20" font-weight="bold" fill="#1e1e1e">Azure Subscription</text>
+
+  <!-- Resource Group box -->
+  <rect x="70" y="65" width="1060" height="710" rx="10" fill="#ebfbee" fill-opacity="0.4" stroke="#2f9e44" stroke-width="2" stroke-dasharray="8,4"/>
+  <text x="90" y="80" font-size="18" font-weight="bold" fill="#2f9e44">Resource Group: rg-dns-security-lab</text>
+
+  <!-- VNet box -->
+  <rect x="100" y="120" width="420" height="350" rx="8" fill="#dbe4ff" fill-opacity="0.5" stroke="#1971c2" stroke-width="2"/>
+  <text x="120" y="135" font-size="16" font-weight="bold" fill="#1971c2">VNet: vnet-dns-lab (10.0.0.0/16)</text>
+
+  <!-- Subnet box -->
+  <rect x="130" y="170" width="360" height="200" rx="6" fill="#edf2ff" fill-opacity="0.6" stroke="#5c7cfa" stroke-width="1" stroke-dasharray="6,3"/>
+  <text x="150" y="183" font-size="14" font-weight="600" fill="#5c7cfa">Subnet: subnet-vm (10.0.1.0/24)</text>
+
+  <!-- NSG box -->
+  <rect x="150" y="210" width="320" height="40" rx="6" fill="#fff4e6" fill-opacity="0.8" stroke="#e8590c" stroke-width="1"/>
+  <text x="165" y="224" font-size="14" fill="#e8590c">&#x1f6e1;&#xfe0f; NSG: nsg-vm-lab (No Public IP)</text>
+
+  <!-- VM box -->
+  <rect x="180" y="270" width="260" height="80" rx="8" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+  <text x="310" y="282" font-size="13" font-weight="bold" fill="#1971c2" text-anchor="middle">&#x1f5a5;&#xfe0f; Ubuntu 22.04 LTS VM</text>
+  <text x="310" y="300" font-size="13" fill="#1971c2" text-anchor="middle">vm-ubuntu-lab</text>
+  <text x="310" y="318" font-size="12" fill="#1971c2" text-anchor="middle">(Standard_B1s, Private IP only)</text>
+
+  <!-- NIC label -->
+  <text x="160" y="363" font-size="11" fill="#495057" opacity="0.8">NIC: vm-ubuntu-lab-nic (Dynamic IP)</text>
+
+  <!-- Bastion box -->
+  <rect x="130" y="400" width="360" height="55" rx="8" fill="#f8f0fc" stroke="#9c36b5" stroke-width="2"/>
+  <text x="310" y="413" font-size="13" font-weight="bold" fill="#9c36b5" text-anchor="middle">&#x1f510; Azure Bastion (Developer SKU)</text>
+  <text x="310" y="432" font-size="13" fill="#9c36b5" text-anchor="middle">Browser-based SSH — No public IP needed</text>
+
+  <!-- Arrow: Bastion → VM -->
+  <line x1="310" y1="400" x2="310" y2="350" stroke="#9c36b5" stroke-width="2" marker-end="url(#arrow-purple)"/>
+  <text x="320" y="375" font-size="12" fill="#9c36b5">SSH (port 22)</text>
+
+  <!-- DNS Security Policy box -->
+  <rect x="600" y="120" width="480" height="220" rx="8" fill="#fff5f5" fill-opacity="0.8" stroke="#c92a2a" stroke-width="2"/>
+  <text x="620" y="135" font-size="15" font-weight="bold" fill="#c92a2a">&#x1f6ab; DNS Security Policy: dns-security-policy-lab</text>
+
+  <!-- Domain List box -->
+  <rect x="620" y="165" width="440" height="65" rx="6" fill="#ffe3e3" stroke="#e03131" stroke-width="1"/>
+  <text x="635" y="178" font-size="13" font-weight="bold" fill="#e03131">&#x1f4cb; Domain List: malicious-domains-list</text>
+  <text x="645" y="196" font-size="13" fill="#e03131">• malicious.contoso.com.</text>
+  <text x="645" y="214" font-size="13" fill="#e03131">• exploit.adatum.com.</text>
+
+  <!-- Security Rule box -->
+  <rect x="620" y="245" width="440" height="45" rx="6" fill="#ffe3e3" stroke="#e03131" stroke-width="1"/>
+  <text x="635" y="258" font-size="13" font-weight="bold" fill="#e03131">&#x26d4; Security Rule: block-malicious-rule</text>
+  <text x="645" y="276" font-size="13" fill="#e03131">Action: Block (Priority 100)</text>
+
+  <!-- VNet Link box -->
+  <rect x="620" y="300" width="440" height="30" rx="6" fill="#d0ebff" stroke="#1971c2" stroke-width="1"/>
+  <text x="635" y="310" font-size="13" fill="#1971c2">&#x1f517; VNet Link: vnet-link-lab &#x2192; vnet-dns-lab</text>
+
+  <!-- Arrow: VM → DNS Policy -->
+  <line x1="440" y1="280" x2="595" y2="280" stroke="#c92a2a" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow-red)"/>
+  <text x="480" y="262" font-size="12" fill="#c92a2a">DNS Queries &#x2192;</text>
+
+  <!-- Key Vault box -->
+  <rect x="100" y="500" width="420" height="70" rx="8" fill="#fff9db" stroke="#f08c00" stroke-width="2"/>
+  <text x="120" y="513" font-size="13" font-weight="bold" fill="#f08c00">&#x1f511; Azure Key Vault</text>
+  <text x="120" y="531" font-size="13" fill="#f08c00">Stores auto-generated VM admin password</text>
+  <text x="120" y="549" font-size="13" fill="#f08c00">Access policy scoped to deploying user</text>
+
+  <!-- Log Analytics box -->
+  <rect x="600" y="400" width="480" height="170" rx="8" fill="#e3fafc" fill-opacity="0.8" stroke="#1098ad" stroke-width="2"/>
+  <text x="620" y="415" font-size="15" font-weight="bold" fill="#1098ad">&#x1f4ca; Log Analytics: law-dns-security-lab</text>
+
+  <!-- Diagnostic Settings box -->
+  <rect x="620" y="445" width="440" height="35" rx="6" fill="#c5f6fa" stroke="#1098ad" stroke-width="1"/>
+  <text x="635" y="457" font-size="13" fill="#1098ad">Diagnostic Settings: DnsResponse logs</text>
+
+  <!-- Sentinel box -->
+  <rect x="620" y="495" width="440" height="55" rx="6" fill="#f3d9fa" stroke="#5f3dc4" stroke-width="2"/>
+  <text x="635" y="508" font-size="13" font-weight="bold" fill="#5f3dc4">&#x1f6e1;&#xfe0f; Microsoft Sentinel</text>
+  <text x="635" y="528" font-size="13" fill="#5f3dc4">Threat detection &amp; analytics on DNS events</text>
+
+  <!-- Arrow: DNS Policy → Log Analytics -->
+  <line x1="840" y1="340" x2="840" y2="395" stroke="#1098ad" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow-teal)"/>
+  <text x="850" y="358" font-size="12" fill="#1098ad">DnsResponse logs</text>
+
+  <!-- Storage Account box -->
+  <rect x="100" y="600" width="420" height="55" rx="8" fill="#f8f9fa" stroke="#868e96" stroke-width="1"/>
+  <text x="120" y="613" font-size="13" font-weight="bold" fill="#868e96">&#x1f4be; Storage Account (Standard_LRS)</text>
+  <text x="120" y="631" font-size="13" fill="#868e96">VM Boot Diagnostics (TLS 1.2, HTTPS only)</text>
+
+  <!-- Data Flow legend -->
+  <text x="600" y="620" font-size="14" font-weight="bold" fill="#495057">Data Flow:</text>
+  <text x="600" y="640" font-size="13" fill="#495057">1. User connects to VM via Azure Bastion (browser SSH)</text>
+  <text x="600" y="658" font-size="13" fill="#495057">2. VM issues DNS queries (e.g. nslookup malicious.contoso.com)</text>
+  <text x="600" y="676" font-size="13" fill="#495057">3. DNS Security Policy intercepts &amp; blocks matching domains</text>
+  <text x="615" y="694" font-size="13" fill="#495057">&#x2192; Responds with blockpolicy.azuredns.invalid</text>
+  <text x="600" y="712" font-size="13" fill="#495057">4. DnsResponse logs sent to Log Analytics</text>
+  <text x="600" y="730" font-size="13" fill="#495057">5. Microsoft Sentinel analyzes logs for threat detection</text>
+
+  <!-- IaC label -->
+  <text x="100" y="690" font-size="12" fill="#868e96" opacity="0.7">Infrastructure as Code: Bicep (infra/main.bicep)</text>
+  <text x="100" y="708" font-size="12" fill="#868e96" opacity="0.7">Tags: Purpose=DNS-Security-Lab, Environment=Lab</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#9c36b5"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#c92a2a"/>
+    </marker>
+    <marker id="arrow-teal" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#1098ad"/>
+    </marker>
+  </defs>
+</svg>
