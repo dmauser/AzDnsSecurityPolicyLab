@@ -15,7 +15,7 @@
 #
 # Output:
 #   - Console output with timestamped log messages
-#   - dnstest.log file containing query results and status
+#   - dnstest_<timestamp>[_keyword].log file containing query results and status
 #
 # Requirements:
 #   - dig (DNS lookup utility) - automatically installed if missing
@@ -31,16 +31,7 @@
 #   ./dnstest.sh -h                        (display help)
 #
 
-# Set log file
-LOG_FILE="dnstest.log"
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-
-# Function to log messages
-log_message() {
-    echo "[${TIMESTAMP}] $1" | tee -a "$LOG_FILE"
-}
-
-# Parse arguments
+# Parse arguments first to determine log file name
 SEARCH_KEYWORD=""
 
 while [[ $# -gt 0 ]]; do
@@ -54,12 +45,25 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            log_message "Unknown option: $1"
-            log_message "Use -h for help"
+            echo "Unknown option: $1"
+            echo "Use -h for help"
             exit 1
             ;;
     esac
 done
+
+# Set log file with timestamp and optional keyword
+TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
+if [[ -n "$SEARCH_KEYWORD" ]]; then
+    LOG_FILE="dnstest_${TIMESTAMP}_${SEARCH_KEYWORD}.log"
+else
+    LOG_FILE="dnstest_${TIMESTAMP}.log"
+fi
+
+# Function to log messages
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
 
 # Check if dig is installed, install if not
 if ! command -v dig &> /dev/null; then
