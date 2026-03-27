@@ -5,12 +5,12 @@
 #              Downloads a blacklist of known malicious/suspicious domains and performs
 #              DNS lookups (dig queries) on each domain to verify their resolution status.
 #
-# Usage: ./dnstest.sh [keyword]
-#        ./dnstest.sh -h
+# Usage: ./dnstest.sh [-q keyword] [-h]
+#        ./dnstest.sh
 #
 # Options:
-#   keyword     Search keyword to filter blacklist domains (optional)
-#               Example: ./dnstest.sh malware
+#   -q keyword  Search keyword to filter blacklist domains (optional)
+#               Example: ./dnstest.sh -q blob.core.windows.net
 #   -h          Display this help message and exit
 #
 # Output:
@@ -25,9 +25,10 @@
 # Blacklist Source:
 #   https://github.com/fabriziosalmi/blacklists/releases/download/latest/blacklist.txt
 #
-# Example:
-#   ./dnstest.sh malware
-#   ./dnstest.sh -h
+# Examples:
+#   ./dnstest.sh                           (queries all domains)
+#   ./dnstest.sh -q blob.core.windows.net  (queries only matching domains)
+#   ./dnstest.sh -h                        (display help)
 #
 
 # Set log file
@@ -35,16 +36,30 @@ LOG_FILE="dnstest.log"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 # Function to log messages
-SEARCH_KEYWORD="${1:-}"
-
-if [[ -z "$SEARCH_KEYWORD" ]]; then
-    log_message "Usage: $0 [keyword]"
-    log_message "Example: $0 malware"
-    exit 1
-fi
 log_message() {
     echo "[${TIMESTAMP}] $1" | tee -a "$LOG_FILE"
 }
+
+# Parse arguments
+SEARCH_KEYWORD=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -q)
+            SEARCH_KEYWORD="$2"
+            shift 2
+            ;;
+        -h)
+            grep "^#" "$0" | sed 's/^# //' | sed 's/^#//'
+            exit 0
+            ;;
+        *)
+            log_message "Unknown option: $1"
+            log_message "Use -h for help"
+            exit 1
+            ;;
+    esac
+done
 
 # Check if dig is installed, install if not
 if ! command -v dig &> /dev/null; then
@@ -59,11 +74,20 @@ curl -L https://github.com/fabriziosalmi/blacklists/releases/download/latest/bla
 
 # Run dig against each domain in the blacklist
 log_message "Running dig queries..."
+if [[ -n "$SEARCH_KEYWORD" ]]; then
+    log_message "Filtering by keyword: $SEARCH_KEYWORD"
+fi
 log_message "=================================================="
 
 count=0
 while IFS= read -r domain; do
     [[ -z "$domain" || "$domain" =~ ^[[:space:]]*# ]] && continue
+    
+    # Filter by keyword if provided
+    if [[ -n "$SEARCH_KEYWORD" && ! "$domain" =~ $SEARCH_KEYWORD ]]; then
+        continue
+    fi
+    
     ((count++))
     echo ""
     log_message "[$count] Querying: $domain"
