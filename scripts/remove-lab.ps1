@@ -90,26 +90,27 @@ if ($confirm -ne $resourceGroupName) {
     exit 0
 }
 
-# ── Discover Key Vault(s) to purge after RG deletion ─────────────────────────
-$vaultNames = @(Get-AzKeyVault -ResourceGroupName $resourceGroupName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty VaultName)
+# ── Discover Key Vault(s) and their locations before deletion ─────────────────
+$vaults = @(Get-AzKeyVault -ResourceGroupName $resourceGroupName -ErrorAction SilentlyContinue)
 
-# ── Delete resource group ─────────────────────────────────────────────────────
+# ── Delete resource group (no-wait) ───────────────────────────────────────────
 Write-Host ""
 Write-Host "Deleting resource group '$resourceGroupName'..." -ForegroundColor Cyan
-Remove-AzResourceGroup -Name $resourceGroupName -Force | Out-Null
-Write-Host "Resource group deleted." -ForegroundColor Green
+Remove-AzResourceGroup -Name $resourceGroupName -Force -AsJob | Out-Null
+Write-Host "Resource group deletion initiated (running in background)." -ForegroundColor Green
 
 # ── Purge soft-deleted Key Vaults ─────────────────────────────────────────────
-foreach ($vaultName in $vaultNames) {
-    Write-Host "Purging soft-deleted Key Vault '$vaultName'..." -ForegroundColor Cyan
+foreach ($vault in $vaults) {
+    Write-Host "Purging soft-deleted Key Vault '$($vault.VaultName)'..." -ForegroundColor Cyan
     try {
-        Remove-AzKeyVault -VaultName $vaultName -InRemovedState -Force -Location (Get-AzDeletedVault -VaultName $vaultName).Properties.Location
-        Write-Host "Key Vault '$vaultName' purged." -ForegroundColor Green
+        Remove-AzKeyVault -VaultName $vault.VaultName -InRemovedState -Force -Location $vault.Location
+        Write-Host "Key Vault '$($vault.VaultName)' purged." -ForegroundColor Green
     } catch {
-        Write-Host "Could not purge Key Vault '$vaultName': $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "Could not purge Key Vault '$($vault.VaultName)': $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
 Write-Host ""
-Write-Host "Lab removal complete." -ForegroundColor Green
+Write-Host "Lab removal initiated. The resource group deletion continues in the background." -ForegroundColor Green
+Write-Host "Check status with: Get-AzResourceGroup -Name '$resourceGroupName'" -ForegroundColor DarkGray
 

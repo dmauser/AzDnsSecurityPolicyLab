@@ -92,15 +92,16 @@ fi
 VAULT_NAMES=()
 while IFS= read -r line; do VAULT_NAMES+=("$line"); done < <(az keyvault list --resource-group "$RESOURCE_GROUP_NAME" --query '[].name' --output tsv 2>/dev/null)
 
-# ── Delete resource group ─────────────────────────────────────────────────────
+# ── Delete resource group (no-wait) ───────────────────────────────────────────
 echo ""
 echo "Deleting resource group '$RESOURCE_GROUP_NAME'..."
 
 az group delete \
     --name "$RESOURCE_GROUP_NAME" \
-    --yes
+    --yes \
+    --no-wait
 
-echo "Resource group deleted."
+echo "Resource group deletion initiated (running in background)."
 
 # ── Purge soft-deleted Key Vaults ─────────────────────────────────────────────
 for VAULT_NAME in "${VAULT_NAMES[@]}"; do
@@ -116,4 +117,5 @@ for VAULT_NAME in "${VAULT_NAMES[@]}"; do
 done
 
 echo ""
-echo "Lab removal complete."
+echo "Lab removal initiated. The resource group deletion continues in the background."
+echo "Check status with: az group show --name '$RESOURCE_GROUP_NAME'"
