@@ -229,7 +229,8 @@ DNSQueryLogs
 
 // View queries from specific virtual network
 DNSQueryLogs
-| where VirtualNetworkId contains "vnet-dns-security-lab"
+// Run command "az network vnet show -g rg-dns-security-lab --query resourceGuid -n vnet-dns-lab -o tsv" to get the VirtualNetwork ID
+| where VirtualNetworkId contains "Input Virtual Newtork ID"
 | project TimeGenerated, QueryName, SourceIpAddress, QueryType, ResponseCode
 | limit 100
 
