@@ -45,3 +45,32 @@
 - Gated by `installDnsTools` param (default true) — no breaking changes.
 - Adds ~15s to VM provisioning time for extension completion.
 - Belt-and-suspenders strategy ensures tools availability regardless of cloud-init timing/races.
+
+### 2026-05-04 — Sentinel Summary Rule Automation Script (P2-2)
+- Created `scripts/setup-sentinel-summary-rule.sh` to automate the most painful manual step in Scenario 5.
+- Uses `az rest --method PUT` against `Microsoft.OperationalInsights/summaryLogs/{ruleName}` endpoint (API version 2023-01-01-preview).
+- Includes fallback to alternative endpoint path if primary returns 404 (API availability varies by region).
+- KQL query matches README Scenario 5, Step 3 exactly — aggregates DNSQueryLogs hourly into DNSQueryLogs_sum_CL.
+- Script is idempotent: PUT is naturally create-or-update; explicit 409/conflict handling as well.
+- Follows same style conventions as seed-demo.sh (log_info/pass/warn/fail, getopts, auto-discovery pattern).
+- Summary Logs REST API is preview — may change. Script provides clear manual fallback instructions if API fails.
+
+### 2026-05-04 — Lab Completion Report Script (scripts/lab-report.sh)
+- Created `scripts/lab-report.sh` as a read-only completion artifact (P2-3 task).
+- Gathers: resource inventory, DNS block/allow tests via VM run-command, Log Analytics DNSQueryLogs count, Sentinel incidents via REST API.
+- Renders a colorized text-art "Lab Completion Certificate" banner suitable for screenshots.
+- Follows project conventions: `set -euo pipefail`, getopts `-g`/`-h`, color helpers, same resource discovery patterns.
+- DNS tests use `az vm run-command invoke` + nslookup (same approach as verify-lab.sh) targeting 5 domains (3 blocked, 2 allowed).
+- Sentinel incidents queried via `Microsoft.SecurityInsights/incidents` REST endpoint (api-version 2024-09-01).
+- Default resource group: `rg-dns-security-lab` (matching lab README convention).
+
+### 2026-05-04 — Key Vault Soft-Delete Idempotency Handler (P2-6)
+- Added `VaultAlreadyExists` / soft-delete error handler to `scripts/deploy-lab.sh`.
+- Matches existing error-handling pattern (SKU, Bastion) — new `elif` branch with grep -qi.
+- Recovery guidance: `az keyvault purge` or wait ≥1 minute for new utcNow()-based name.
+- Added explanatory comment above deployment command documenting WHY utcNow() is used.
+- The grep pattern covers: VaultAlreadyExists, soft.delete, SoftDeletedVault, "already exists in a deleted state".
+
+### 2026-05-04 — Decision: Summary Rule Automation (Recorded in decisions.md)
+- Spengler's Summary Rule automation proposal documented and merged into canonical decisions.md.
+- Rationale: Eliminates manual portal step, uses preview API defensively, idempotent safety.
