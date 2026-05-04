@@ -16,3 +16,9 @@
 - TI data connector and Summary Rules are portal-only — cannot be automated via Bicep/ARM.
 - Bicep triple-quote (`'''`) syntax works well for multi-line KQL without escaping issues.
 - Key file: `infra/main.bicep` lines ~354–490 (after `sentinel` solution resource).
+
+### 2026-05-04 — Sentinel Demo Script (scripts/seed-demo.sh) Added
+- Created `scripts/seed-demo.sh` as "warm-the-lab" script for Sentinel demo prep
+- Populates sample DNS query logs into Log Analytics prior to live demo execution
+- Enables Sentinel TI rules to fire predictably during demo walk-through
+- Status: Implemented and ready for demo workflow integration

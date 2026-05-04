@@ -28,3 +28,10 @@
   - Auto-discovers RG by matching name containing 'dns', or accepts `-g` flag
   - API versions: `2023-06-01` for DNS resolver resources, `2024-09-01` for Sentinel alertRules
   - Two-script validation strategy: `verify-lab.sh` (from outside) + `e2e-test.sh` (from inside VM)
+
+- **2026-05-04**: Created scripts/pre-demo-check.sh — binary READY/NOT READY presenter check.
+   - Quick pre-demo validation for demo presenter (exit 0=READY, exit 1=NOT READY)
+   - Confirms all core resources exist: RG, VM, Log Analytics, DNS policy, Sentinel solution
+   - No deep dives into policy rules/logs — just existence check for demo confidence
+   - Used by Coordinator for demo wave preparation validation
+   - Status: Implemented and integrated into demo readiness workflow
