@@ -1,0 +1,32 @@
+{
+  "agents": {
+    "holtz": {
+      "persistent_name": "Holtz",
+      "universe": "Ghostbusters",
+      "created_at": "2026-05-04T08:57:19Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "spengler": {
+      "persistent_name": "Spengler",
+      "universe": "Ghostbusters",
+      "created_at": "2026-05-04T08:57:19Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "stantz": {
+      "persistent_name": "Stantz",
+      "universe": "Ghostbusters",
+      "created_at": "2026-05-04T08:57:19Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "zeddemore": {
+      "persistent_name": "Zeddemore",
+      "universe": "Ghostbusters",
+      "created_at": "2026-05-04T08:57:19Z",
+      "legacy_named": false,
+      "status": "active"
+    }
+  }
+}

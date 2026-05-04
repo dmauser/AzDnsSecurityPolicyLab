@@ -53,6 +53,9 @@ var tags = {
   Environment: 'Lab'
 }
 
+@description('Deploy Sentinel analytics rules for DNS TI correlation. Set to false on first deployment if TI connector and Summary Rule are not yet configured.')
+param deploySentinelAnalyticsRules bool = true
+
 // utcNow() changes every deployment, ensuring Key Vault names never collide with soft-deleted vaults.
 @description('Deployment timestamp for unique naming. Do not supply manually.')
 param deploymentTimestamp string = utcNow('yyyyMMddHHmmss')
@@ -348,6 +351,197 @@ resource sentinel 'Microsoft.OperationsManagement/solutions@2015-11-01-preview' 
   }
   properties: {
     workspaceResourceId: logAnalyticsWorkspace.id
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sentinel Analytics Rules — DNS Threat Intelligence Detection
+// ─────────────────────────────────────────────────────────────────────────────
+// PREREQUISITES (manual steps — not automatable via ARM/Bicep as of 2024):
+//   1. Enable the "Microsoft Defender Threat Intelligence" data connector in
+//      the Sentinel portal. This populates the ThreatIntelIndicators table.
+//   2. Create a Summary Rule in the Sentinel portal that aggregates
+//      DNSQueryLogs -> DNSQueryLogs_sum_CL (see README Scenario 5, Step 3).
+//      Summary Rules use a portal-only API and cannot be deployed via IaC yet.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Rule 1: DNS Domain match against Threat Intelligence indicators.
+// Correlates queried domains (exact, parent-domain, and CNAME) from the
+// summarized DNS logs with known-bad domains in ThreatIntelIndicators.
+resource sentinelRuleDnsDomainTI 'Microsoft.SecurityInsights/alertRules@2024-09-01' = if (deploySentinelAnalyticsRules) {
+  name: guid(logAnalyticsWorkspace.id, 'dns-domain-ti-match')
+  scope: logAnalyticsWorkspace
+  kind: 'Scheduled'
+  dependsOn: [sentinel]
+  properties: {
+    displayName: 'DNS Query matches Threat Intelligence domain indicator'
+    description: 'Detects DNS queries to domains flagged in Threat Intelligence. Matches exact domain, parent domain (sub.evil.com -> evil.com), and CNAME answer chains.'
+    severity: 'Medium'
+    enabled: true
+    query: '''
+let dt_lookBack = 1h;
+let ioc_lookBack = 14d;
+let ThreatIntel = materialize(
+    ThreatIntelIndicators
+    | where TimeGenerated >= ago(ioc_lookBack) and ValidUntil > now()
+    | where IsActive == true
+    | summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by Id
+    | extend source = Data.name
+    | extend IndicatorType = tostring(Data.indicator_types)
+    | where ObservableKey has "domain"
+    | extend DomainName = ObservableValue
+    | where isnotempty(DomainName)
+);
+let DNSQueryLogs_sum = (
+    DNSQueryLogs_sum_CL
+    | where TimeGenerated >= ago(dt_lookBack)
+    | extend QueryName = trim_end("\\.", QueryName)
+);
+let ioc_query_match_exact = (
+    ThreatIntel
+    | project DomainName, IsActive, Confidence, ValidUntil, IndicatorType
+    | join kind=inner (DNSQueryLogs_sum | extend _LookupType = "query_match_exact")
+      on $left.DomainName == $right.QueryName
+);
+let ioc_query_match_parentdomain_only = (
+    ThreatIntel
+    | project DomainName, IsActive, Confidence, ValidUntil, IndicatorType
+    | join kind=inner (
+        DNSQueryLogs_sum
+        | extend DomainNameExtractKey = replace_regex(QueryName, "^.*?\\.", "")
+        | extend _LookupType = "query_match_parentdomain_only"
+    ) on $left.DomainName == $right.DomainNameExtractKey
+);
+let ioc_answer_match_exact = (
+    ThreatIntel
+    | project DomainName, IsActive, Confidence, ValidUntil, IndicatorType
+    | join kind=inner (
+        DNSQueryLogs_sum
+        | where RType == "CNAME"
+        | mv-expand AnswersKey = Answers to typeof(string)
+        | extend AnswersKey = trim_end("\\.", AnswersKey)
+        | extend _LookupType = "answer_match_exact"
+    ) on $left.DomainName == $right.AnswersKey
+);
+ioc_query_match_parentdomain_only
+| union ioc_query_match_exact, ioc_answer_match_exact
+| project TimeGenerated, QueryName, DomainName, IsActive, Confidence, ValidUntil,
+         IndicatorType, RType, OperationName, SourceIpAddress, Transport, Answers,
+         RDataCount, EventCount, Region, VirtualNetworkId, _LookupType
+'''
+    queryFrequency: 'PT1H'
+    queryPeriod: 'P14D'
+    triggerOperator: 'GreaterThan'
+    triggerThreshold: 0
+    suppressionDuration: 'PT5H'
+    suppressionEnabled: false
+    tactics: [
+      'CommandAndControl'
+      'InitialAccess'
+    ]
+    incidentConfiguration: {
+      createIncident: true
+      groupingConfiguration: {
+        enabled: true
+        reopenClosedIncident: false
+        lookbackDuration: 'PT5H'
+        matchingMethod: 'AllEntities'
+      }
+    }
+    entityMappings: [
+      {
+        entityType: 'DNS'
+        fieldMappings: [
+          {
+            identifier: 'DomainName'
+            columnName: 'QueryName'
+          }
+        ]
+      }
+      {
+        entityType: 'IP'
+        fieldMappings: [
+          {
+            identifier: 'Address'
+            columnName: 'SourceIpAddress'
+          }
+        ]
+      }
+    ]
+  }
+}
+// Detects when a DNS A/AAAA response contains an IP address flagged in TI,
+// even if the queried domain name itself is not flagged.
+resource sentinelRuleDnsIpTI 'Microsoft.SecurityInsights/alertRules@2024-09-01' = if (deploySentinelAnalyticsRules) {
+  name: guid(logAnalyticsWorkspace.id, 'dns-ip-ti-match')
+  scope: logAnalyticsWorkspace
+  kind: 'Scheduled'
+  dependsOn: [sentinel]
+  properties: {
+    displayName: 'DNS Answer IP matches Threat Intelligence network indicator'
+    description: 'Detects DNS responses where the resolved IP (A/AAAA record) matches a known malicious IP in Threat Intelligence indicators.'
+    severity: 'Medium'
+    enabled: true
+    query: '''
+let dt_lookBack = 1h;
+let ioc_lookBack = 14d;
+ThreatIntelIndicators
+| where TimeGenerated >= ago(ioc_lookBack) and ValidUntil > now()
+| where IsActive == true
+| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by Id
+| extend IndicatorType = tostring(Data.indicator_types)
+| where ObservableKey has "network-traffic"
+| extend IpAddr = ObservableValue
+| where isnotempty(IpAddr)
+| project IpAddr, IsActive, Confidence, ValidUntil, IndicatorType
+| join kind=inner (
+    DNSQueryLogs_sum_CL
+    | where TimeGenerated >= ago(dt_lookBack)
+    | where RType in ("A","AAAA")
+    | mv-expand Answers to typeof(string)
+    | project TimeGenerated, QueryName, RType, Answers, SourceIpAddress, Region, VirtualNetworkId, EventCount
+) on $left.IpAddr == $right.Answers
+| project TimeGenerated, QueryName, IpAddr, IsActive, Confidence, ValidUntil,
+         IndicatorType, RType, SourceIpAddress, Region, VirtualNetworkId, EventCount
+'''
+    queryFrequency: 'PT1H'
+    queryPeriod: 'P14D'
+    triggerOperator: 'GreaterThan'
+    triggerThreshold: 0
+    suppressionDuration: 'PT5H'
+    suppressionEnabled: false
+    tactics: [
+      'CommandAndControl'
+    ]
+    incidentConfiguration: {
+      createIncident: true
+      groupingConfiguration: {
+        enabled: true
+        reopenClosedIncident: false
+        lookbackDuration: 'PT5H'
+        matchingMethod: 'AllEntities'
+      }
+    }
+    entityMappings: [
+      {
+        entityType: 'IP'
+        fieldMappings: [
+          {
+            identifier: 'Address'
+            columnName: 'IpAddr'
+          }
+        ]
+      }
+      {
+        entityType: 'DNS'
+        fieldMappings: [
+          {
+            identifier: 'DomainName'
+            columnName: 'QueryName'
+          }
+        ]
+      }
+    ]
   }
 }
 

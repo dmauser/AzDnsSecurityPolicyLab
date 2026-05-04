@@ -179,6 +179,8 @@ KV=$(az deployment group show -g rg-dns-security-lab -n main --query properties.
 az keyvault secret show --vault-name "$KV" --name vm-admin-password --query value -o tsv
 ```
 
+> **Note:** The template includes Sentinel Analytics Rules for DNS Threat Intelligence detection. On first deployment, if the TI data connector and Summary Rule are not yet configured, set `deploySentinelAnalyticsRules=false` to skip these rules, then redeploy with `true` after completing the manual Sentinel setup (see Scenario 5).
+
 
 
 ## 📊 DNS Query Monitoring
@@ -679,6 +681,34 @@ This checks for:
 - Required tools (jq, etc.)
 - Subscription access permissions
 
+### Post-Deployment Verification
+
+After deployment, verify all resources are correctly provisioned:
+
+```bash
+./scripts/verify-lab.sh              # auto-discovers resource group
+./scripts/verify-lab.sh -g my-rg     # specify resource group
+```
+
+This validates:
+- All expected resources exist (VM, VNet, Bastion, Log Analytics, DNS Policy, Key Vault)
+- DNS Security Policy is linked to the VNet
+- Domain list contains expected blocked domains
+- Diagnostic settings point to Log Analytics
+- Sentinel solution and analytics rules are deployed
+
+### End-to-End DNS Testing (On-VM)
+
+Run from inside the VM (via Bastion) to validate DNS blocking works:
+
+```bash
+./scripts/e2e-test.sh                # DNS validation tests only
+./scripts/e2e-test.sh -w             # + Log Analytics pipeline check (5min timeout)
+./scripts/e2e-test.sh -w -t 600      # + Log Analytics check with 10min timeout
+```
+
+Tests blocked domains return `NXDOMAIN`/`blockpolicy.azuredns.invalid` and allowed domains resolve correctly.
+
 ## 🗂️ File Structure
 
 ```
@@ -688,7 +718,7 @@ AzDnsSecurityPolicyLab/
 ├── answers.json.template        # Template for configuration
 ├── .gitignore                   # Git ignore rules
 ├── infra/
-│   ├── main.bicep              # All Azure resource definitions
+│   ├── main.bicep              # All Azure resource definitions (incl. Sentinel analytics rules)
 │   └── main.bicepparam         # Parameter values (names, region, SKUs)
 ├── scripts/
 │   ├── deploy-lab.ps1          # PowerShell deployment (Az module)
@@ -696,6 +726,8 @@ AzDnsSecurityPolicyLab/
 │   ├── remove-lab.ps1          # PowerShell cleanup (Az module)
 │   ├── remove-lab.sh           # Bash cleanup
 │   ├── validate-environment.sh # Pre-deployment validation
+│   ├── verify-lab.sh           # Post-deployment resource verification
+│   ├── e2e-test.sh             # End-to-end DNS security test (run on VM)
 │   └── dnstest.sh              # DNS blacklist testing utility
 ├── media/
 │   ├── DNSThreadIntel-Config.png  # Threat Intel config screenshot

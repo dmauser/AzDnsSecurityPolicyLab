@@ -1,0 +1,17 @@
+{
+  "universe_usage_history": [
+    {
+      "universe": "Ghostbusters",
+      "used_at": "2026-05-04T08:57:19Z",
+      "reason": "DNS threat-busting lab — thematic resonance with ghost hunting"
+    }
+  ],
+  "assignment_cast_snapshots": {
+    "2026-05-04-initial": {
+      "assignment_id": "2026-05-04-initial",
+      "universe": "Ghostbusters",
+      "timestamp": "2026-05-04T08:57:19Z",
+      "agents": ["holtz", "spengler", "stantz", "zeddemore"]
+    }
+  }
+}
