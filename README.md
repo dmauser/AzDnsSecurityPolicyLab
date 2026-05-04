@@ -376,6 +376,53 @@ The lab creates a DNS security policy with the following configuration:
 - **Diagnostic Settings**: Configured to capture DNS query logs
 - **Data Retention**: Default Log Analytics retention policy
 
+## 🔄 How It Works — DNS Block to Sentinel Flow
+
+This diagram shows the complete end-to-end data flow: from a DNS query hitting the security policy, through blocking and logging, to threat detection and incident creation in Microsoft Sentinel. Watch this flow as you work through the scenarios below.
+
+```mermaid
+sequenceDiagram
+    participant VM as Ubuntu VM
+    participant DNS as Azure DNS<br/>(Resolver)
+    participant Policy as DNS Security<br/>Policy
+    participant DomainList as Domain List<br/>(Malicious Domains)
+    participant LAW as Log Analytics<br/>Workspace
+    participant Summary as Summary Rule<br/>(Hourly Aggregation)
+    participant Analytics as Sentinel<br/>Analytics Rule
+    participant TI as Threat Intelligence<br/>Indicators
+    participant Incident as Sentinel<br/>Incidents
+
+    VM->>DNS: 1. dig malicious.contoso.com
+    DNS->>Policy: 2. Evaluate against policy
+    Policy->>DomainList: 3. Check domain match<br/>(priority 100)
+    DomainList-->>Policy: ✓ Match found
+    Policy->>VM: 4. Return blockpolicy.azuredns.invalid<br/>(NXDOMAIN)
+    Policy->>LAW: 5. Log DNSQueryLogs<br/>(query, source IP, action=Deny)
+    
+    Note over LAW: 6. Summary Rule runs (hourly)<br/>aggregates blocked queries
+    LAW->>Summary: Summary records to<br/>DNSQueryLogs_sum_CL
+    
+    Note over Analytics: 7. Scheduled KQL query<br/>runs every 15 minutes
+    Analytics->>LAW: 8. Join DNSQueryLogs_sum_CL<br/>with ThreatIntelIndicators
+    Analytics->>TI: Lookup domain<br/>reputation
+    TI-->>Analytics: ✓ Threat match
+    
+    Analytics->>Incident: 9. Create Incident<br/>(DNS anomaly + threat match)
+    Incident-->>Analytics: Incident created<br/>(for SOC triage)
+```
+
+### Flow Explanation
+
+| Step | Component | Action |
+|------|-----------|--------|
+| 1-4 | **DNS Blocking** | VM queries a blocked domain; Azure DNS Security Policy blocks it at the resolver layer |
+| 5 | **Raw Logging** | Each DNS query (blocked or allowed) is logged to `DNSQueryLogs` in real-time |
+| 6 | **Aggregation** | Summary Rule runs hourly, aggregating query patterns into `DNSQueryLogs_sum_CL` |
+| 7-8 | **Threat Detection** | Sentinel Analytics Rule queries aggregated logs and joins with Threat Intelligence data |
+| 9 | **Incident** | When a blocked domain matches a threat indicator, Sentinel creates an incident for SOC response |
+
+This multi-layer approach provides **immediate blocking** (step 4) while building a **detection system** that correlates DNS activity with known threats (steps 7-9).
+
 ## 📊 Lab Scenarios
 
 ### Scenario 1: Basic DNS Blocking Test
@@ -407,12 +454,37 @@ dig google.com +short
 
 4. Verify results in Log Analytics (queries appear within 1-2 minutes)
 
+> 💡 **What Just Happened?**
+> Your DNS Security Policy intercepted queries at the resolver level—before they left the VNet—and blocked malicious domains in real-time. Unlike traditional firewalls that inspect traffic at the network edge, DNS security stops threats at the source. This prevents malware C2 callbacks, data exfiltration, and phishing before your users ever reach the attacker's infrastructure.
+
 ### Scenario 2: DNS Policy Modification
 
-1. Add new domains to the block list
-2. Create additional security rules
-3. Test different response codes
-4. Modify rule priorities
+Add a new domain to the block list and verify it's blocked:
+
+```bash
+# Get current domain list
+RG=$(jq -r '.resourceGroupName' answers.json)
+az dns-resolver policy domain-list show -g $RG -n malicious-domains-list --query domains
+
+# Add a new domain (append to existing list)
+az dns-resolver policy domain-list update -g $RG -n malicious-domains-list \
+  --domains '["malicious.contoso.com.", "exploit.adatum.com.", "phishing.fabrikam.com."]'
+
+# Test from VM — should now be blocked
+dig phishing.fabrikam.com    # Expected: NXDOMAIN / blockpolicy.azuredns.invalid
+
+# Remove it to restore lab state
+az dns-resolver policy domain-list update -g $RG -n malicious-domains-list \
+  --domains '["malicious.contoso.com.", "exploit.adatum.com."]'
+
+# Verify restoration
+dig phishing.fabrikam.com    # Expected: normal resolution (NOERROR)
+```
+
+> 🔍 **What happened:** The DNS Security Policy evaluates queries against the domain list in real-time. Adding a domain takes effect within seconds — no restart required.
+
+> 💡 **What Just Happened?**
+> You updated the block list without restarting infrastructure—exactly how modern SOC teams respond to new indicators of compromise (IOCs) during incident response. Instead of manual DNS firewall changes that take hours, your policy modification was live in seconds. This agility is critical: when a new phishing campaign is detected at 2 AM, your security team can block all known campaign domains immediately without waiting for maintenance windows.
 
 ### Scenario 3: Monitoring and Analysis
 
@@ -420,6 +492,9 @@ dig google.com +short
 2. **Monitor DNS Queries**: View all DNS queries and blocked attempts in the Log Analytics workspace
 3. **Analyze Security Events**: Use KQL queries to analyze blocked vs. allowed queries
 4. **Set Up Alerts**: Configure Azure Monitor alerts for suspicious DNS activity patterns
+
+> 💡 **What Just Happened?**
+> DNS is a universal activity log: every device makes DNS queries, from workstations to cloud services, making DNS logs a goldmine for threat detection. By collecting and analyzing DNS queries, you can spot malware beaconing, data exfiltration via DNS tunneling, and lateral movement before they cause damage. DNS is less likely to be evasion-prone than network traffic, making it one of the most reliable telemetry sources for detecting compromised systems.
 
 ### Scenario 4: DNS Threat Intelligence Testing
 
@@ -486,6 +561,9 @@ You should see results similar to this:
 ![DNS Threat Intelligence results in Log Analytics](media/DNSThreadIntel.png)
 
 The log entries show which domains were blocked by Threat Intelligence versus those blocked by your custom DNS Security Rules.
+
+> 💡 **What Just Happened?**
+> You applied **layered threat intelligence**: Microsoft's continuously-updated threat feed identified domains associated with known malware, ransomware, and phishing campaigns and blocked them automatically. Unlike maintaining your own domain blocklist, threat intel is proactive—it flags domains before your organization becomes a target. This is how enterprise security stays ahead of new attack campaigns without requiring your SOC to manually research every suspicious domain.
 
 ### Scenario 5: Sentinel DNS Threat Detection
 
@@ -653,6 +731,15 @@ ThreatIntelIndicators
 
 > **Note:** This rule uses the `DNSQueryLogs_sum_CL` summary table. If you prefer to query the raw `DNSQueryLogs` table directly instead, keep it in **Analytics** tier (not Basic) because `join` operations are not supported on Basic-tier tables.
 
+#### Expected Sentinel Output
+
+> 📸 **Screenshot placeholder:** After running the demo with `seed-demo.sh`, you should see:
+> 1. An incident titled "DNS Query to Known Malicious Domain" in Sentinel → Incidents
+> 2. Entity mapping showing the blocked domain and source IP
+> 3. The KQL query results in the incident timeline
+>
+> *To capture your own screenshots, run the full demo flow and check Sentinel after ~1 hour.*
+
 #### Cost considerations
 
 | Component | Cost |
@@ -665,6 +752,9 @@ ThreatIntelIndicators
 | Analytics rules | **Free** (included in Sentinel) |
 
 > For a lab running occasionally, expect **~$0 during the free trial** and **~$9-15/month** after, depending on DNS query volume.
+
+> 💡 **What Just Happened?**
+> You created a correlation engine: DNS logs + threat intelligence indicators + scheduled analytics rules together form an automated detection pipeline. Raw DNS queries are noise; threat intelligence gives context; analytics rules find the signal. This is how modern SOCs detect compromises: not by hunting individual alerts, but by correlating multiple data sources to surface actionable incidents that human analysts can investigate and respond to. In this lab, a suspicious DNS query automatically became a high-fidelity security incident.
 
 ## 🛠️ Alternative Scripts
 
@@ -709,6 +799,24 @@ Run from inside the VM (via Bastion) to validate DNS blocking works:
 
 Tests blocked domains return `NXDOMAIN`/`blockpolicy.azuredns.invalid` and allowed domains resolve correctly.
 
+### Demo Preparation
+
+Run **1+ hour before your demo** to warm Sentinel data pipelines:
+
+```bash
+./scripts/seed-demo.sh               # enables TI connector, fires DNS queries, checks Summary Rule
+./scripts/seed-demo.sh -g my-rg      # specify resource group
+```
+
+Run **5 minutes before going on stage** for a go/no-go verdict:
+
+```bash
+./scripts/pre-demo-check.sh          # binary READY / NOT READY output
+./scripts/pre-demo-check.sh -g my-rg # specify resource group
+```
+
+See [DEMO-GUIDE.md](DEMO-GUIDE.md) for the full presenter quick-reference card with timing, speaker notes, and panic guide.
+
 ## 🗂️ File Structure
 
 ```
@@ -728,6 +836,8 @@ AzDnsSecurityPolicyLab/
 │   ├── validate-environment.sh # Pre-deployment validation
 │   ├── verify-lab.sh           # Post-deployment resource verification
 │   ├── e2e-test.sh             # End-to-end DNS security test (run on VM)
+│   ├── seed-demo.sh            # Warm the lab for Sentinel demo (run 1hr before)
+│   ├── pre-demo-check.sh       # Binary READY/NOT READY presenter check
 │   └── dnstest.sh              # DNS blacklist testing utility
 ├── media/
 │   ├── DNSThreadIntel-Config.png  # Threat Intel config screenshot
@@ -805,10 +915,16 @@ AzDnsSecurityPolicyLab/
 
 ## 📚 Learning Resources
 
-- [Azure DNS Security Policies Documentation](https://docs.microsoft.com/en-us/azure/dns/dns-security-policy-overview)
-- [Azure DNS Resolver Documentation](https://docs.microsoft.com/en-us/azure/dns/dns-resolver-overview)
-- [Azure Monitor and Log Analytics](https://docs.microsoft.com/en-us/azure/azure-monitor/)
-- [KQL Query Language Reference](https://docs.microsoft.com/en-us/azure/data-explorer/kusto/query/)
+Each scenario in this lab connects to specific Azure security capabilities. Use this table to dive deeper into the concepts:
+
+| Scenario | Topic | Microsoft Learn |
+|---|---|---|
+| **General** | Azure DNS Private Resolver Overview | [DNS Private Resolver Overview](https://learn.microsoft.com/azure/dns/dns-private-resolver-overview) |
+| **1 — DNS Blocking** | DNS Security Policy & Domain Blocking | [DNS Security Policy Overview](https://learn.microsoft.com/en-us/azure/dns/dns-security-policy) |
+| **2 — Policy Modification** | Managing DNS Security Rules | [DNS Security Policy Overview](https://learn.microsoft.com/en-us/azure/dns/dns-security-policy) |
+| **3 — DNS Resolution Testing** | DNS Query Monitoring & Logging | [DNS Traffic Logging & Diagnostics](https://learn.microsoft.com/en-us/azure/dns/dns-security-policy) |
+| **4 — Threat Intelligence** | Threat Intelligence in DNS Security | [DNS Security Policy with Threat Intelligence](https://learn.microsoft.com/en-us/azure/dns/dns-security-policy) |
+| **5 — Sentinel Integration** | Summary Rules & Analytics Rules | [Sentinel Summary Rules](https://learn.microsoft.com/azure/sentinel/summary-rules) · [Analytics Rules & Threat Detection](https://learn.microsoft.com/azure/sentinel/detect-threats-custom) |
 
 ## 🤝 Contributing
 

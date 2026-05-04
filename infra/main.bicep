@@ -56,6 +56,12 @@ var tags = {
 @description('Deploy Sentinel analytics rules for DNS TI correlation. Set to false on first deployment if TI connector and Summary Rule are not yet configured.')
 param deploySentinelAnalyticsRules bool = true
 
+@description('Deploy a Log Analytics Workbook with pre-built DNS Security visualizations.')
+param deployWorkbook bool = true
+
+@description('Install DNS testing tools (dig, nslookup, curl, jq) and create a quick-test helper script on the VM.')
+param installDnsTools bool = true
+
 // utcNow() changes every deployment, ensuring Key Vault names never collide with soft-deleted vaults.
 @description('Deployment timestamp for unique naming. Do not supply manually.')
 param deploymentTimestamp string = utcNow('yyyyMMddHHmmss')
@@ -198,6 +204,8 @@ chpasswd:
   expire: false
 packages:
   - dnsutils
+  - curl
+  - jq
 '''
 
 // Ubuntu 22.04 LTS VM — password from Key Vault, access via Azure Bastion
@@ -248,7 +256,24 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-03-01' = {
   }
 }
 
-// Azure Bastion Developer SKU — free tier, browser-based SSH, no dedicated subnet or public IP required.
+// Custom Script Extension — installs DNS testing tools and creates a quick-test helper script.
+resource vmDnsToolsExtension 'Microsoft.Compute/virtualMachines/extensions@2024-03-01' = if (installDnsTools) {
+  name: 'install-dns-tools'
+  parent: vm
+  location: location
+  tags: tags
+  properties: {
+    publisher: 'Microsoft.Azure.Extensions'
+    type: 'CustomScript'
+    typeHandlerVersion: '2.1'
+    autoUpgradeMinorVersion: true
+    settings: {
+      commandToExecute: 'apt-get update && apt-get install -y dnsutils curl jq && echo \'#!/bin/bash\necho "DNS tools ready: dig, nslookup, host, curl, jq"\necho "Run: dig malicious.contoso.com to test blocking"\' > /home/azureuser/dns-quick-test.sh && chmod +x /home/azureuser/dns-quick-test.sh'
+    }
+  }
+}
+
+// Azure Bastion Developer SKU— free tier, browser-based SSH, no dedicated subnet or public IP required.
 // The Developer SKU uses shared Azure infrastructure and only needs a reference to the VNet.
 // NOTE: Developer SKU is available in most Azure regions. If deployment fails with a region error,
 // set 'location' in main.bicepparam to one of: eastus, westus, eastus2, westeurope, northeurope,
@@ -542,6 +567,102 @@ ThreatIntelIndicators
         ]
       }
     ]
+  }
+}
+
+// ─── Log Analytics Workbook: DNS Security Dashboard ───────────────────────────
+// Pre-built KQL visualizations for the DNS Security Lab demo.
+// Includes: Blocked vs Allowed pie chart, Top 10 Blocked Domains bar chart,
+// DNS Query Timeline, and Source IP Analysis table.
+resource dnsSecurityWorkbook 'Microsoft.Insights/workbooks@2022-04-01' = if (deployWorkbook) {
+  name: guid(logAnalyticsWorkspace.id, 'dns-security-workbook')
+  location: location
+  tags: tags
+  kind: 'shared'
+  properties: {
+    displayName: 'DNS Security Lab Dashboard'
+    category: 'sentinel'
+    sourceId: logAnalyticsWorkspace.id
+    serializedData: string({
+      version: 'Notebook/1.0'
+      items: [
+        {
+          type: 1
+          content: {
+            json: '## DNS Security Lab Dashboard\nVisualize DNS query activity and security policy enforcement.'
+          }
+          name: 'header'
+        }
+        {
+          type: 3
+          content: {
+            version: 'KqlItem/1.0'
+            query: 'DNSQueryLogs\n| summarize Count=count() by ResolverPolicyRuleAction\n| order by Count desc'
+            size: 1
+            title: 'Blocked vs Allowed Queries'
+            timeContext: {
+              durationMs: 86400000
+            }
+            queryType: 0
+            resourceType: 'microsoft.operationalinsights/workspaces'
+            visualization: 'piechart'
+          }
+          name: 'blocked-vs-allowed'
+        }
+        {
+          type: 3
+          content: {
+            version: 'KqlItem/1.0'
+            query: 'DNSQueryLogs\n| where ResolverPolicyRuleAction in ("Deny", "Block")\n| summarize Count=count() by QueryName\n| top 10 by Count desc'
+            size: 1
+            title: 'Top 10 Blocked Domains'
+            timeContext: {
+              durationMs: 86400000
+            }
+            queryType: 0
+            resourceType: 'microsoft.operationalinsights/workspaces'
+            visualization: 'barchart'
+          }
+          name: 'top-blocked-domains'
+        }
+        {
+          type: 3
+          content: {
+            version: 'KqlItem/1.0'
+            query: 'DNSQueryLogs\n| summarize Count=count() by bin(TimeGenerated, 5m), ResolverPolicyRuleAction\n| order by TimeGenerated asc'
+            size: 0
+            title: 'DNS Query Timeline'
+            timeContext: {
+              durationMs: 86400000
+            }
+            queryType: 0
+            resourceType: 'microsoft.operationalinsights/workspaces'
+            visualization: 'timechart'
+          }
+          name: 'query-timeline'
+        }
+        {
+          type: 3
+          content: {
+            version: 'KqlItem/1.0'
+            query: 'DNSQueryLogs\n| where ResolverPolicyRuleAction in ("Deny", "Block")\n| summarize BlockedQueries=count(), DistinctDomains=dcount(QueryName) by SourceIpAddress\n| order by BlockedQueries desc\n| take 20'
+            size: 0
+            title: 'Source IP Analysis — Top Blocked Query Sources'
+            timeContext: {
+              durationMs: 86400000
+            }
+            queryType: 0
+            resourceType: 'microsoft.operationalinsights/workspaces'
+            visualization: 'table'
+          }
+          name: 'source-ip-analysis'
+        }
+      ]
+      isLocked: false
+      fallbackResourceIds: [
+        logAnalyticsWorkspace.id
+      ]
+    })
   }
 }
 

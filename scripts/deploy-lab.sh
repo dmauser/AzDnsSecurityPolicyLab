@@ -111,6 +111,9 @@ PARAMS_FILE="$REPO_ROOT/infra/main.bicepparam"
 echo ""
 echo "Deploying Bicep template..."
 # --only-show-errors suppresses informational stderr (e.g. Bicep progress lines)
+# NOTE: The Key Vault name in main.bicep uses utcNow() to produce a unique name
+# per deployment, avoiding soft-delete collisions across separate lab runs.
+# Trade-off: re-running within the same minute after a failure can still collide.
 set +e
 DEPLOY_OUTPUT=$(az deployment group create \
     --resource-group "$RESOURCE_GROUP_NAME" \
@@ -151,6 +154,26 @@ if [[ $DEPLOY_EXIT -ne 0 ]]; then
         echo "  Change 'location' in infra/main.bicepparam to a supported region."
         echo "  Supported regions include: eastus, westus, eastus2, westeurope, northeurope"
         echo "  Full list: https://aka.ms/bastionsku"
+        echo ""
+    elif echo "$DEPLOY_OUTPUT" | grep -qi "VaultAlreadyExists\|soft.delete\|SoftDeletedVault\|already exists in a deleted state"; then
+        # Key Vault names include utcNow() to avoid collisions across deployments,
+        # but re-running within the same minute (e.g. after a mid-deploy failure) can
+        # hit a soft-delete conflict because Azure retains deleted vaults for 90 days.
+        KV_NAME=$(echo "$DEPLOY_OUTPUT" | grep -oP "(?<=vault ')[^']+|(?<=Vault ')[^']+|(?<=name ')[^']+" | head -1)
+        KV_NAME=${KV_NAME:-"<vault-name-from-error-above>"}
+        echo "Key Vault soft-delete conflict detected."
+        echo ""
+        echo "This happens when the deployment is re-run within the same minute after a"
+        echo "prior failure. Azure retains deleted Key Vaults for 90 days (soft-delete)."
+        echo ""
+        echo "How to fix:"
+        echo "  Option 1 — Purge the soft-deleted vault, then re-run:"
+        echo "    az keyvault purge --name '$KV_NAME' --no-wait"
+        echo "    # Wait ~30 seconds, then re-run: ./scripts/deploy-lab.sh"
+        echo ""
+        echo "  Option 2 — Wait ≥1 minute and re-run (a new vault name will be generated):"
+        echo "    # The template uses utcNow() to generate a unique vault name per minute."
+        echo "    ./scripts/deploy-lab.sh"
         echo ""
     else
         echo "Error details:"
